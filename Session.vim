@@ -13,26 +13,21 @@ if &shortmess =~ 'A'
 else
   set shortmess=aoO
 endif
-badd +21 src/dispatch/dispatch.py
-badd +15 pyproject.toml
-badd +7 src/dispatch/tests/test_dispatcher_instances.py
-badd +7 src/dispatch/tests/test_annotation_info.py
+badd +0 src/dispatch/dispatch.py
+badd +0 src/tests/test_annotation_info.py
+badd +0 src/tests/test_dispatcher_instances.py
 argglobal
 %argdel
 $argadd src/dispatch/dispatch.py
-$argadd pyproject.toml
-edit src/dispatch/tests/test_annotation_info.py
+$argadd src/tests/test_annotation_info.py
+$argadd src/tests/test_dispatcher_instances.py
+edit src/dispatch/dispatch.py
 argglobal
-if bufexists(fnamemodify("src/dispatch/tests/test_annotation_info.py", ":p")) | buffer src/dispatch/tests/test_annotation_info.py | else | edit src/dispatch/tests/test_annotation_info.py | endif
-if &buftype ==# 'terminal'
-  silent file src/dispatch/tests/test_annotation_info.py
-endif
-balt src/dispatch/tests/test_dispatcher_instances.py
 setlocal foldmethod=indent
 setlocal foldexpr=0
 setlocal foldmarker={{{,}}}
 setlocal foldignore=#
-setlocal foldlevel=2
+setlocal foldlevel=0
 setlocal foldminlines=1
 setlocal foldnestmax=20
 setlocal foldenable
@@ -41,7 +36,7 @@ if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
-normal! 028|
+normal! 0
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
@@ -55,6 +50,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 doautoall SessionLoadPost
 unlet SessionLoad
 " vim: set ft=vim :

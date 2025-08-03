@@ -94,22 +94,18 @@ def test_non_contextual_predicates():
 
 def type_and_non_contextual_predicates(
     a: int & 2 + 2 == 4 & 4 < 5,  # type: ignore
-    b: int & 5 < 4,  # type: ignore
+    b: int | float & 5 < 4,  # type: ignore
 ): 
     return a + b
 
 
 def test_type_and_non_contextual_predicates():
-    """It is possible to pre-evaluate the non-contextual predicates.
+    """It is _possible_ to pre-evaluate the non-contextual predicates.
 
-    However, we do not currently support this feature.
+    We do not currently support this feature when a type annotation occurs.
     """
     annotations = annotation_info(type_and_non_contextual_predicates)
     assert annotations == {
         "a": AnnotationInfo(int, "2 + 2 == 4 & 4 < 5"),  # i.e. always True
-        "b": AnnotationInfo(int, "5 < 4"),  # i.e. always False
+        "b": AnnotationInfo(int | float, "5 < 4"),  # i.e. always False
     }
-
-
-# - str | bytes & 2+2==4    # Type annotation and non-contextual predicate
-# - 4 > 5                   # Only a non-contextual predicate
