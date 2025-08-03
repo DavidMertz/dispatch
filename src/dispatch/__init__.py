@@ -1,11 +1,4 @@
-# Multiple and Predicative Dispatch
-
-## API
-
-
-
-## History
-
+HISTORY = """
 I once implemented multiple dispatch (multimethods) in an ancient 2002 package:
 
   * https://pypi.org/project/Gnosis_Utils/
@@ -45,22 +38,22 @@ That nifty library makes up much of the inspiration for this one.  In those
 post-Python-2.4 days, when we had decorators (but before `print()` became a
 function), Phillip allowed us to write things like this:
 
-```python
-import dispatch
+    import dispatch
 
-@dispatch.generic()
-def doIt(foo, other):
-    "Base generic function of 'doIt()'"
+    @dispatch.generic()
+    def doIt(foo, other):
+        "Base generic function of 'doIt()'"
 
-@doIt.when("isinstance(foo,int) and isinstance(other,str)")
-def doIt(foo, other):
-    print "foo is an unrestricted int |", foo, other
+    @doIt.when("isinstance(foo,int) and isinstance(other,str)")
+    def doIt(foo, other):
+        print "foo is an unrestricted int |", foo, other
 
-@doIt.when("isinstance(foo,int) and 3<=foo<=17 and isinstance(other,str)")
-def doIt(foo, other):
-    print "foo is between 3 and 17 |", foo, other
+    @doIt.when("isinstance(foo,int) and 3<=foo<=17 and isinstance(other,str)")
+    def doIt(foo, other):
+        print "foo is between 3 and 17 |", foo, other
 
-@doIt.when("isinstance(foo,int) and 0<=foo<=1000 and isinstance(other,str)")
-def doIt(foo, other):
-    print "foo is between 0 and 1000 |", foo, other
-```        
+    @doIt.when("isinstance(foo,int) and 0<=foo<=1000 and isinstance(other,str)")
+    def doIt(foo, other):
+        print "foo is between 0 and 1000 |", foo, other
+"""
+
