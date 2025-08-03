@@ -1,6 +1,6 @@
 #!/bin/bash
 # There really should be a way to make `uv publish` do this
-
+rm -rf dist
 uv sync
 source .venv/bin/activate
 uv build

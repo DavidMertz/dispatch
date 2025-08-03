@@ -40,9 +40,16 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
             annotations[arg] = AnnotationInfo(Any, "True")  # No type annotation
             continue
         elif len(parts := fn.__annotations__[arg].split("&", maxsplit=1)) == 2:
-            # Both type and predicate
+            # Both type and predicate (maybe)
             type_, predicate = parts
-            annotations[arg] = AnnotationInfo(eval(type_), predicate)
+            try:
+                type_ = eval(type_)
+                if isinstance(type_, (type, UnionType)):
+                    annotations[arg] = AnnotationInfo(type_, predicate.strip())
+            except (TypeError, NameError, Exception) as _err:
+                # This could be a compound predicate containing an ampersand
+                all_parts = fn.__annotations__[arg].strip()
+                annotations[arg] = AnnotationInfo(Any, all_parts)
         else:
             try:
                 # Is first thing a type annotation?
@@ -52,11 +59,13 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
                     annotations[arg] = AnnotationInfo(type_, "True")  # No predicate
                 else:
                     # This is the odd case of non-contextual predicate (e.g. 2+2==5)
-                    boolean_result = type_
+                    boolean_result = str(type_)
                     annotations[arg] = AnnotationInfo(Any, boolean_result)
             except (TypeError, NameError, Exception) as _err:
                 # Not a type annotation, so it's a predicate (store as a string)
-                annotations[arg] = AnnotationInfo(Any, parts[0])  # No type annotation
+                annotations[arg] = AnnotationInfo(
+                    Any, parts[0].strip()
+                )  # No type annotation
 
     return annotations
 
