@@ -70,6 +70,49 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
     return annotations
 
 
+# =============================================================================
+# Define at least one "MRO" resolver.
+# =============================================================================
+def first_satisfiable(
+    args: list[Any], implementations: list[AnnotationInfo]
+) -> Callable:
+    """
+    Create a list of candidate implementations in declaration order.
+
+    Among this, select the first one that satisfies the predicates. If no
+    matching implementation is found, raise an exception.
+
+    Prior to PEP 484 and numerous compound types (Union[] specifically), it
+    was possible to rank matches. That is no longer coherent.  For example:
+
+      >>> class SpecialInt(int):
+      ...     pass
+      ...
+      >>> n = SpecialInt(13)
+      >>> type(n).mro()
+      [<class '__main__.SpecialInt'>, <class 'int'>, <class 'object'>]
+
+    In some sense, `n` is "most like" a SpecialInt, a bit less like an int,
+    and just nominally like an object.  In this simple case, we could rank or
+    weight such distances in evaluating several candidate implementations.
+
+      >>> def add(a: int, b: int | float | complex):
+      ...     return a + b
+      ...
+      >>> add(SpecialInt(13), SpecialInt(12))
+      25
+
+    We can sensibly measure the "fit" of the match of the first argument, but
+    we cannot do so for the second argument.  It's simply a match or non-match.
+    """
+    _ = args
+    _ = implementations
+    return lambda: "XXX"
+
+
+# =============================================================================
+# The Dispatcher class and its metaclass
+# =============================================================================
 class DispatcherMeta(type):
     def __repr__(cls):
         s = f"{cls.__name__} bound implementations:"
@@ -105,6 +148,7 @@ def get_dispatcher():
 
         def __new__(cls, fn: Callable | None = None, *, name: str = ""):
             new = super().__new__(cls)
+            new.resolver = first_satisfiable
 
             if fn is not None:
                 name = fn.__name__
@@ -130,6 +174,14 @@ def get_dispatcher():
             Dispatcher.funcs[name].append(fn)
             Dispatcher.to_bind = None  # Clear the binding after using it
             return Dispatcher
+
+        @property
+        def resolver(self):
+            return Dispatcher.resolver  # type: ignore
+
+        @resolver.setter
+        def resolver(self, resolver):
+            Dispatcher.resolver = resolver
 
     return Dispatcher
 

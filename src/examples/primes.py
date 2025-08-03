@@ -16,7 +16,7 @@ def millerTest(d, n):
     return False
 
 
-def IsPrime(n):
+def mr_primality(n):
     k = min(int(len(str(n)) / 5) + 4, 14)
     if n <= 3:
         return n > 1

@@ -2,7 +2,53 @@
 
 ## API
 
+Let's look at an example of usage that you can find in the `src/examples/`
+directory of the repository.
 
+```python
+from __future__ import annotations
+from math import sqrt
+
+from dispatch.dispatch import get_dispatcher()
+from primes import mr_primality, primes_16bit
+  
+nums = get_dispatcher()
+
+@nums
+def is_prime(n: int & 0 < n < 2**16) -> bool:
+    "Check primes from pre-computed list"
+    return n in primes_16bit
+
+@nums
+def is_prime(n: n < 2**32) -> bool:
+    "Check for prime factors < sqrt(2**32)"
+    for prime in primes_16bit:
+        if prime > sqrt(n):
+            return True
+        if n % prime == 0:
+            return False
+    return True
+
+@nums(name="is_prime")
+def miller_rabin(n: int & n >= 2**32):
+    "Use Miller-Rabin pseudo-primality test"
+    return mr_primality(n)
+
+nums.is_prime(64_489)        # True by direct search
+nums.is_prime(64_487)        # False by direct search
+nums.is_prime(262_147)       # True by trial division
+nums.is_prime(262_143)       # False by trial division
+nums.is_prime(4_294_967_311) # True by Miller-Rabin test
+nums.is_prime(4_294_967_309) # False by Miller-Rabin test
+
+print(nums) # -->
+# Dispatcher with 1 function bound to 3 implementations
+print(repr(nums)) # -->
+# Dispatcher bound implementations:
+# - is_prime: {'n': 'int & 0 < n < 2 ** 16', 'return': 'bool'}
+# - is_prime: {'n': 'n < 2 ** 32', 'return': 'bool'}
+# - is_prime: {'n': 'int & n >= 2 ** 32'} (re-bound 'miller_rabin')
+```
 
 ## History
 
@@ -54,7 +100,7 @@ def doIt(foo, other):
 
 @doIt.when("isinstance(foo,int) and isinstance(other,str)")
 def doIt(foo, other):
-    print "foo is an unrestricted int |", foo, other
+    prin  "foo is an unrestricted int |", foo, other
 
 @doIt.when("isinstance(foo,int) and 3<=foo<=17 and isinstance(other,str)")
 def doIt(foo, other):
