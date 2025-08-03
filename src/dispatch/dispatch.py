@@ -8,6 +8,12 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Callable
 
+namespace_detritus = [
+    "_ipython_canary_method_should_not_exist_",
+    "_ipython_display_",
+    "_repr_mimebundle_",
+]
+
 
 class DispatcherMeta(type):
     def __repr__(cls):
@@ -20,7 +26,7 @@ class DispatcherMeta(type):
         return s
 
     def __str__(cls):
-        n_names = len(cls.funcs)
+        n_names = sum(1 for f in cls.funcs if f not in namespace_detritus)
         n_impls = sum(len(funcs) for funcs in cls.funcs.values())
         return (
             f"{cls.__name__} with {n_names} function{'s' if n_names > 1 else ''} "
@@ -91,6 +97,7 @@ if __name__ == "__main__":
         print(f"String and int: {s}, {n}")
 
     print(1, Dispatcher)
+
     @Dispatcher
     def say(n: int & n > 100):
         print(f"Large int: {n}")
