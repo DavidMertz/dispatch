@@ -5,14 +5,60 @@ See README.md for an historical discussion of this topic.
 """
 
 from __future__ import annotations
-from collections import defaultdict
-from typing import Callable
+from collections import defaultdict, namedtuple
+from types import UnionType
+from typing import Any, Callable
 
 namespace_detritus = [
     "_ipython_canary_method_should_not_exist_",
     "_ipython_display_",
     "_repr_mimebundle_",
 ]
+
+AnnotationInfo = namedtuple("AnnotationInfo", "type predicate")
+
+
+def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
+    """
+    Extract args, types, and predicates
+
+    The complication is that each annotation can have any of several formats:
+
+      - <nothing>               # No type annotation or predicate
+      - int | float             # Bare type annotation
+      - int & 3 <= a <= 17      # A type annotation with a predicate
+      - a > 42 & a < 500        # Bare predicate (perhaps with several bitwise operators)
+      - str | bytes & 2+2==4    # Type annotation and non-contextual predicate
+      - 4 > 5                   # Only a non-contextual predicate
+
+      We can assume, however, that anything after an ampersand is a predicate.
+    """
+    annotations = {}
+    for arg in fn.__code__.co_varnames:
+        if arg not in fn.__annotations__:
+            # No type annotation or predicate
+            annotations[arg] = AnnotationInfo(Any, "True")  # No type annotation
+            continue
+        elif len(parts := fn.__annotations__[arg].split("&", maxsplit=1)) == 2:
+            # Both type and predicate
+            type_, predicate = parts
+            annotations[arg] = AnnotationInfo(eval(type_), predicate)
+        else:
+            try:
+                # Is first thing a type annotation?
+                # We will usually raise an exception if not a valid type
+                type_ = eval(parts[0])
+                if isinstance(type_, (type, UnionType)):
+                    annotations[arg] = AnnotationInfo(type_, "True")  # No predicate
+                else:
+                    # This is the odd case of non-contextual predicate (e.g. 2+2==5)
+                    boolean_result = type_
+                    annotations[arg] = AnnotationInfo(Any, boolean_result)
+            except (TypeError, NameError, Exception) as _err:
+                # Not a type annotation, so it's a predicate (store as a string)
+                annotations[arg] = AnnotationInfo(Any, parts[0])  # No type annotation
+
+    return annotations
 
 
 class DispatcherMeta(type):
@@ -35,74 +81,49 @@ class DispatcherMeta(type):
 
     def __getattr__(cls, name):
         "Implements multiple and predicative dispatch, if bound name exists."
-        try:
-            return cls.funcs[name][0]
-        except Exception as err:
-            raise AttributeError(f"No function bound to {name} ({err})")
+        funcs = cls.funcs.get(name, [])
+        if not funcs:
+            raise AttributeError(f"No implementations are bound to {name}")
+        return funcs[0]  # TODO: Now just first implementation
 
 
-class Dispatcher(metaclass=DispatcherMeta):
-    funcs = defaultdict(list)
-    to_bind = None
+def get_dispatcher():
+    "Manufacuture as many Dispatcher objects as needed."
 
-    def __new__(cls, fn: Callable | None = None, *, name: str = ""):
-        new = super().__new__(cls)
+    class Dispatcher(metaclass=DispatcherMeta):
+        funcs = defaultdict(list)
+        to_bind = None
 
-        if fn is not None:
-            name = fn.__name__
-            new.__class__.funcs[name].append(fn)
-        elif not name:
-            raise ValueError(
-                f"{cls.__name__} must be used as a decorator, "
-                "or to call a bound method"
-            )
-        elif name:
-            new.__class__.to_bind = name
+        def __new__(cls, fn: Callable | None = None, *, name: str = ""):
+            new = super().__new__(cls)
 
-        return new
+            if fn is not None:
+                name = fn.__name__
+                new.__class__.funcs[name].append(fn)
+            elif not name:
+                raise ValueError(
+                    f"{cls.__name__} must be used as a decorator, "
+                    "or to call a bound method"
+                )
+            elif name:
+                new.__class__.to_bind = name
 
-    def __repr__(self):
-        cls = self.__class__
-        n_names = len(cls.funcs)
-        n_impls = sum(len(funcs) for funcs in cls.funcs.values())
-        return (
-            f"{cls.__name__} with {n_names} function{'s' if n_names > 1 else ''} "
-            f"bound to {n_impls} implementation{'s' if n_impls > 1 else ''}"
-        )
+            return new
 
-    def __call__(self, func):
-        name = Dispatcher.to_bind or func.__name__
-        Dispatcher.funcs[name].append(func)
-        Dispatcher.to_bind = None  # Clear the binding after using it
-        return Dispatcher
+        def __repr__(self):
+            return repr(self.__class__)
+
+        def __str__(self):
+            return str(self.__class__)
+
+        def __call__(self, fn):
+            name = Dispatcher.to_bind or fn.__name__
+            Dispatcher.funcs[name].append(fn)
+            Dispatcher.to_bind = None  # Clear the binding after using it
+            return Dispatcher
+
+    return Dispatcher
 
 
-if __name__ == "__main__":
-    # def foo(a: int | float & a > 42 & a < 500, b: str, c: str = "blah") -> str:
-    #     print(f"foo({a}, {b})")
-    #
-    # print(foo.__annotations__)
-    # for arg, annotation in foo.__annotations__.items():
-    #     type_, *predicates = annotation.split("&")
-    #     print(f"{arg}: {eval(type_)} (where {predicates})")
-
-    @Dispatcher
-    def say(s: str):
-        print(f"String: say({s})")
-
-    print(0, say)
-
-    @Dispatcher(name="say")
-    def say_two_things(s: str, n: int):
-        print(f"String and int: {s}, {n}")
-
-    print(1, Dispatcher)
-
-    @Dispatcher
-    def say(n: int & n > 100):
-        print(f"Large int: {n}")
-
-    print(2, say)
-
-    print(3, repr(Dispatcher))
-    Dispatcher.say("Hello")
+# This is a default Dispatcher object, for common scenarios needing just one.
+Dispatcher = get_dispatcher()
