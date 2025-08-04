@@ -16,6 +16,15 @@ namespace_detritus = [
 ]
 
 AnnotationInfo = namedtuple("AnnotationInfo", "type predicate")
+FunctionInfo = namedtuple("FunctionInfo", "fn annotation_info")
+
+
+def function_info(
+    fn: Callable, annotation_info: dict[str, AnnotationInfo]
+) -> FunctionInfo:
+    "Cleanup function object and aggregate with extracted annotation info."
+    # TODO: Massage function object's __annotations__ attribute
+    return FunctionInfo(fn, annotation_info)
 
 
 def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
@@ -34,7 +43,9 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
       We can assume, however, that anything after an ampersand is a predicate.
     """
     annotations = {}
-    for arg in fn.__code__.co_varnames:
+    # Locals defined in the function scope are in `co_varnames`, but they come
+    # _after_ the formal arguments whose count is `co_argcount`.
+    for arg in fn.__code__.co_varnames[: fn.__code__.co_argcount]:
         if arg not in fn.__annotations__:
             # No type annotation or predicate
             annotations[arg] = AnnotationInfo(Any, "True")  # No type annotation
@@ -63,9 +74,8 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
                     annotations[arg] = AnnotationInfo(Any, boolean_result)
             except (TypeError, NameError, Exception) as _err:
                 # Not a type annotation, so it's a predicate (store as a string)
-                annotations[arg] = AnnotationInfo(
-                    Any, parts[0].strip()
-                )  # No type annotation
+                predicate = parts[0].strip()
+                annotations[arg] = AnnotationInfo(Any, predicate)
 
     return annotations
 
@@ -73,9 +83,7 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
 # =============================================================================
 # Define at least one "MRO" resolver.
 # =============================================================================
-def first_satisfiable(
-    args: list[Any], implementations: list[AnnotationInfo]
-) -> Callable:
+def first_satisfiable(implementations: list[FunctionInfo]) -> Callable:
     """
     Create a list of candidate implementations in declaration order.
 
@@ -105,9 +113,8 @@ def first_satisfiable(
     We can sensibly measure the "fit" of the match of the first argument, but
     we cannot do so for the second argument.  It's simply a match or non-match.
     """
-    _ = args
-    _ = implementations
-    return lambda: "XXX"
+    fn = implementations[0].fn  # XXX
+    return fn
 
 
 # =============================================================================
@@ -117,10 +124,17 @@ class DispatcherMeta(type):
     def __repr__(cls):
         s = f"{cls.__name__} bound implementations:"
         for key, funcs in cls.funcs.items():  # type: ignore
-            for fn in funcs:
-                s += f"\n- {key}: {fn.__annotations__}"
-                if key != fn.__name__:
-                    s += f" (re-bound '{fn.__name__}')"
+            for n, fi in enumerate(funcs):
+                s += f"\n({n}) {key}"
+                if key != fi.fn.__name__:
+                    s += f" (re-bound '{fi.fn.__name__}')"
+                for argname, info in fi.annotation_info.items():
+                    pretty_type = (
+                        info.type.__name__
+                        if hasattr(info.type, "__name__")
+                        else str(info.type)
+                    )
+                    s += f"\n    {argname}: {pretty_type} ∩ {info.predicate}"
         return s
 
     def __str__(cls):
@@ -131,15 +145,21 @@ class DispatcherMeta(type):
             f"bound to {n_impls} implementation{'s' if n_impls > 1 else ''}"
         )
 
+    def describe(cls):
+        print(repr(cls))
+
     def __getattr__(cls, name):
         "Implements multiple and predicative dispatch, if bound name exists."
-        funcs = cls.funcs.get(name, [])
-        if not funcs:
+        if not (implementations := cls.funcs.get(name, [])):
             raise AttributeError(f"No implementations are bound to {name}")
-        return funcs[0]  # TODO: Now just first implementation
+        if not (implementation := cls.resolver(implementations)):
+            raise ValueError(
+                f"No implementation satisfies types and predicates for {name}"
+            )
+        return implementation
 
 
-def get_dispatcher():
+def get_dispatcher(name="Dispatcher"):
     "Manufacuture as many Dispatcher objects as needed."
 
     class Dispatcher(metaclass=DispatcherMeta):
@@ -152,7 +172,8 @@ def get_dispatcher():
 
             if fn is not None:
                 name = fn.__name__
-                new.__class__.funcs[name].append(fn)
+                implementation = function_info(fn, annotation_info(fn))
+                new.__class__.funcs[name].append(implementation)
             elif not name:
                 raise ValueError(
                     f"{cls.__name__} must be used as a decorator, "
@@ -170,19 +191,21 @@ def get_dispatcher():
             return str(self.__class__)
 
         def __call__(self, fn):
-            name = Dispatcher.to_bind or fn.__name__
-            Dispatcher.funcs[name].append(fn)
-            Dispatcher.to_bind = None  # Clear the binding after using it
-            return Dispatcher
+            name = self.__class__.to_bind or fn.__name__
+            implementation = function_info(fn, annotation_info(fn))
+            self.__class__.funcs[name].append(implementation)
+            self.__class__.to_bind = None  # Clear the binding after using it
+            return self.__class__
 
         @property
         def resolver(self):
-            return Dispatcher.resolver  # type: ignore
+            return self.__class__.resolver  # type: ignore
 
         @resolver.setter
         def resolver(self, resolver):
-            Dispatcher.resolver = resolver
+            self.__class__.resolver = resolver
 
+    Dispatcher.__name__ = name
     return Dispatcher
 
 

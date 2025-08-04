@@ -3,7 +3,8 @@
 ## API
 
 Let's look at an example of usage that you can find in the `src/examples/`
-directory of the repository.
+directory of the repository.  The extra `color` argument just demonstrates
+usage patterns, but is irrelevant for the shown functions.
 
 ```python
 from __future__ import annotations
@@ -11,16 +12,18 @@ from math import sqrt
 
 from dispatch.dispatch import get_dispatcher()
 from primes import mr_primality, primes_16bit
-  
-nums = get_dispatcher()
+nums = get_dispatcher("nums")
 
 @nums
-def is_prime(n: int & 0 < n < 2**16) -> bool:
+def is_prime(
+    n: int & 0 < n < 2**16,
+    color: str & len(color) > 3 = "blue",
+) -> bool:
     "Check primes from pre-computed list"
     return n in primes_16bit
 
 @nums
-def is_prime(n: n < 2**32) -> bool:
+def is_prime(n: n < 2**32, color="red") -> bool:
     "Check for prime factors < sqrt(2**32)"
     for prime in primes_16bit:
         if prime > sqrt(n):
@@ -30,7 +33,7 @@ def is_prime(n: n < 2**32) -> bool:
     return True
 
 @nums(name="is_prime")
-def miller_rabin(n: int & n >= 2**32):
+def miller_rabin(n: int & n >= 2**32, color: str = "green") -> bool:
     "Use Miller-Rabin pseudo-primality test"
     return mr_primality(n)
 
@@ -42,12 +45,18 @@ nums.is_prime(4_294_967_311) # True by Miller-Rabin test
 nums.is_prime(4_294_967_309) # False by Miller-Rabin test
 
 print(nums) # -->
-# Dispatcher with 1 function bound to 3 implementations
-print(repr(nums)) # -->
-# Dispatcher bound implementations:
-# - is_prime: {'n': 'int & 0 < n < 2 ** 16', 'return': 'bool'}
-# - is_prime: {'n': 'n < 2 ** 32', 'return': 'bool'}
-# - is_prime: {'n': 'int & n >= 2 ** 32'} (re-bound 'miller_rabin')
+# nums with 1 function bound to 3 implementations
+nums.describe() # -->
+# nums bound implementations:
+# (0) is_prime
+#     n: int ∩ 0 < n < 2 ** 16
+#     color: str ∩ len(color) > 3
+# (1) is_prime
+#     n: Any ∩ n < 2 ** 32
+#     color: Any ∩ True
+# (2) is_prime (re-bound 'miller_rabin')
+#     n: int ∩ n >= 2 ** 32
+#     color: str ∩ True
 ```
 
 ## History
