@@ -29,7 +29,10 @@ def is_prime(n: n < 2**32, color="red") -> bool:
 
 
 @nums(name="is_prime")
-def miller_rabin(n: int & n >= 2**32, color: str = "green") -> bool:
+def miller_rabin(
+    n: int & n >= 2**32,
+    color: str | bytes = "green",
+) -> bool:
     "Use Miller-Rabin pseudo-primality test"
     return mr_primality(n)
 

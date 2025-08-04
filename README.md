@@ -10,7 +10,7 @@ usage patterns, but is irrelevant for the shown functions.
 from __future__ import annotations
 from math import sqrt
 
-from dispatch.dispatch import get_dispatcher()
+from dispatch.dispatch import get_dispatcher
 from primes import mr_primality, primes_16bit
 nums = get_dispatcher("nums")
 
@@ -33,7 +33,10 @@ def is_prime(n: n < 2**32, color="red") -> bool:
     return True
 
 @nums(name="is_prime")
-def miller_rabin(n: int & n >= 2**32, color: str = "green") -> bool:
+def miller_rabin(
+    n: int & n >= 2**32, 
+    color: str | bytes = "green",
+) -> bool:
     "Use Miller-Rabin pseudo-primality test"
     return mr_primality(n)
 
@@ -56,7 +59,7 @@ nums.describe() # -->
 #     color: Any ∩ True
 # (2) is_prime (re-bound 'miller_rabin')
 #     n: int ∩ n >= 2 ** 32
-#     color: str ∩ True
+#     color: str | bytes ∩ True
 ```
 
 ## History
@@ -85,7 +88,7 @@ them, and the authors might make somewhat different choices about APIs than I do
 here.  But I'm sure that almost all of them work well.
 
 One thing I did, back in 2002 that no one else seems to have done, is to
-implement a choice of what "MRO" to use is choosing an implementation function.
+implement a choice of what "MRO" to use in choosing an implementation function.
 This package may or may not do that in later versions.
 
 Way back in the early 2000s, not too long after I first wrote about and
