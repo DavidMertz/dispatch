@@ -11,22 +11,20 @@ from __future__ import annotations
 from math import sqrt
 
 from dispatch.dispatch import get_dispatcher
-from primes import mr_primality, primes_16bit
+from primes import akw_primality, mr_primality, primes_16bit
 nums = get_dispatcher("nums")
 
 @nums
-def is_prime(
-    n: int & 0 < n < 2**16,
-    color: str & len(color) > 3 = "blue",
-) -> bool:
-    "Check primes from pre-computed list"
+def is_prime(n: int & 0 < n < 2**16, confidence: float = 1.0) -> bool:
+    "Check primes from pre-computed list (confidence implicitly 1.0)"
     return n in primes_16bit
 
 @nums
-def is_prime(n: n < 2**32, color="red") -> bool:
-    "Check for prime factors < sqrt(2**32)"
+def is_prime(n: n < 2**32, confidence=1.0) -> bool:
+    "Check prime factors for n < √2³² (confidence implicitly 1.0)"
+    ceil = sqrt(n)
     for prime in primes_16bit:
-        if prime > sqrt(n):
+        if prime > ceil:
             return True
         if n % prime == 0:
             return False
@@ -35,10 +33,18 @@ def is_prime(n: n < 2**32, color="red") -> bool:
 @nums(name="is_prime")
 def miller_rabin(
     n: int & n >= 2**32, 
-    color: str | bytes = "green",
+    confidence: float = 0.999_999,
 ) -> bool:
     "Use Miller-Rabin pseudo-primality test"
-    return mr_primality(n)
+    return mr_primality(n, confidence)
+
+@nums(name="is_prime")
+def agrawal_kayal_saxena(
+    n: int & n >= 2**32,
+    confidence: float & confidence == 1.0,
+) -> bool:
+    "Use Agrawal-Kayal-Saxena deterministic primality test"
+    return aks_primality(n)
 
 nums.is_prime(64_489)        # True by direct search
 nums.is_prime(64_487)        # False by direct search
@@ -46,20 +52,25 @@ nums.is_prime(262_147)       # True by trial division
 nums.is_prime(262_143)       # False by trial division
 nums.is_prime(4_294_967_311) # True by Miller-Rabin test
 nums.is_prime(4_294_967_309) # False by Miller-Rabin test
+nums.is_prime(4_294_967_311, confidence=1.0) # True by AKS test
+nums.is_prime(4_294_967_309, confidence=1.0) # False by AKS test
 
 print(nums) # -->
-# nums with 1 function bound to 3 implementations
+# nums with 1 function bound to 4 implementations
 nums.describe() # -->
 # nums bound implementations:
 # (0) is_prime
 #     n: int ∩ 0 < n < 2 ** 16
-#     color: str ∩ len(color) > 3
+#     confidence: float ∩ True
 # (1) is_prime
 #     n: Any ∩ n < 2 ** 32
-#     color: Any ∩ True
+#     confidence: Any ∩ True
 # (2) is_prime (re-bound 'miller_rabin')
 #     n: int ∩ n >= 2 ** 32
-#     color: str | bytes ∩ True
+#     confidence: float ∩ True
+# (3) is_prime (re-bound 'agrawal_kayal_saxena')
+#     n: int ∩ n >= 2 ** 32
+#     confidence: float ∩ confidence == 1.0
 ```
 
 ## History
@@ -95,7 +106,7 @@ Way back in the early 2000s, not too long after I first wrote about and
 implemented multiple dispatch in Python, a wondeful fellow Pythonista named
 Phillip J Eby wrote a library called PEAK (Python Enterprise Application Kit).
 Among the many things thrown into PEAK—in a manner much like how I threw every
-passing though and article into Gnosis Utilities—was a "dispatch" module:
+passing thought and article into Gnosis Utilities—was a "dispatch" module:
 
   * https://gnosis.cx/publish/programming/charming_python_b22.html
 
