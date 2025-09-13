@@ -40,11 +40,11 @@ def mr_primality(n, confidence=0.999_999):
             break
 
     # 2 and 3 are prime numbers, 1 is not prime.
-    if n <= 3:  
+    if n <= 3:
         return n > 1
 
     # Even numbers are not prime
-    if n & 1 == 0:  
+    if n & 1 == 0:
         return False
 
     # Factor out powers of 2 from n−1
@@ -58,6 +58,7 @@ def mr_primality(n, confidence=0.999_999):
             return False
 
     return True
+
 
 def aks_primality(n):
     # TODO: Implement AKS primality test.

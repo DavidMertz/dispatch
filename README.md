@@ -3,8 +3,8 @@
 ## API
 
 Let's look at an example of usage that you can find in the `src/examples/`
-directory of the repository.  The extra `color` argument just demonstrates
-usage patterns, but is irrelevant for the shown functions.
+directory of the repository.  The `confidence` argument allows us to set
+a threshold for demanded certainty of the primality of large numbers.
 
 ```python
 from __future__ import annotations
