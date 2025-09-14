@@ -76,7 +76,6 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
                 # Not a type annotation, so it's a predicate (store as a string)
                 predicate = parts[0].strip()
                 annotations[arg] = AnnotationInfo(Any, predicate)
-
     return annotations
 
 
