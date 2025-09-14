@@ -8,8 +8,11 @@ from examples.primes import aks_primality, mr_primality
 nums = get_dispatcher("nums")
 
 
-@nums
-def is_prime(n: int & 0 < n < 2**16, confidence: float = 1.0) -> bool:  # type: ignore
+@nums(name="is_prime")
+def is_tiny_prime(  # type: ignore
+    n: int & 0 < n < 2**16,  # type: ignore
+    confidence: float | int = 1.0,
+) -> bool:
     "Check primes from pre-computed list (confidence implicitly 1.0)"
     _ = confidence  # type: ignore
     return n in primes_16bit
@@ -18,10 +21,10 @@ def is_prime(n: int & 0 < n < 2**16, confidence: float = 1.0) -> bool:  # type: 
 @nums
 def is_prime(
     n: n < 2**32,  # type: ignore
-    confidence=1.0
+    confidence=1.0,
 ) -> bool:
     "Check prime factors for n < √2³² (confidence implicitly 1.0)"
-    _ - confidence  # type: ignore
+    _ = confidence  # type: ignore
     ceil = sqrt(n)
     for prime in primes_16bit:
         if prime > ceil:
@@ -49,7 +52,8 @@ def agrawal_kayal_saxena(
     _ = confidence  # type: ignore
     return aks_primality(n)
 
-print(nums)  # --> 
+
+print(nums)  # -->
 # nums with 1 function bound to 4 implementations
 nums.describe()  # -->
 # nums bound implementations:
@@ -67,12 +71,11 @@ nums.describe()  # -->
 #     confidence: float ∩ confidence == 1.0
 
 
-print(f"{nums.is_prime(64_489)=}")         # True by direct search
-print(f"{nums.is_prime(64_487)=}")         # False by direct search
-print(f"{nums.is_prime(262_147)=}")        # True by trial division
-print(f"{nums.is_prime(262_143)=}")        # False by trial division
-print(f"{nums.is_prime(4_294_967_311)=}")  # True by Miller-Rabin test
-print(f"{nums.is_prime(4_294_967_309)=}")  # False by Miller-Rabin test
-print(f"{nums.is_prime(4_294_967_311, confidence=1.0)=}")  # True by AKS test
-print(f"{nums.is_prime(4_294_967_309, confidence=1.0)=}")  # False by AKS test
-
+print(f"Tiny {nums.is_prime(64_489, 1)=}")      # True by direct search
+print(f"Tiny {nums.is_prime(64_487, 1.0)=}")    # False by direct search
+print(f"Small {nums.is_prime(262_147)=}")        # True by trial division
+print(f"Small {nums.is_prime(262_143)=}")        # False by trial division
+print(f"Fuzzy {nums.is_prime(4_294_967_311)=}")  # True by Miller-Rabin test
+print(f"Fuzzy {nums.is_prime(4_294_967_309)=}")  # False by Miller-Rabin test
+print(f"Definite {nums.is_prime(4_294_967_311, confidence=1.0)=}")  # True by AKS test
+print(f"Definite {nums.is_prime(4_294_967_309, confidence=1.0)=}")  # False by AKS test

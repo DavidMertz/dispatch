@@ -1,3 +1,4 @@
+from __future__ import annotations
 from math import sqrt
 
 import pytest
@@ -35,9 +36,9 @@ def test_nums_str():
 def test_nums_describe(capsys):
     expected = (
         "nums bound implementations:\n"
-        "(0) is_prime\n"
+        "(0) is_prime (re-bound 'is_tiny_prime')\n"
         "    n: int ∩ 0 < n < 2 ** 16\n"
-        "    confidence: float ∩ True\n"
+        "    confidence: float | int ∩ True\n"
         "(1) is_prime\n"
         "    n: Any ∩ n < 2 ** 32\n"
         "    confidence: Any ∩ True\n"
@@ -98,13 +99,16 @@ def test_aks_primality(n, confidence, result):
     assert aks_primality(n) == result
 
 
+def test_best_satisfiable():
+    pass
+
 @pytest.mark.parametrize(
     "n,confidence,result",
     [
         (64_489, 1.0, True),
         (64_487, 1.0, False),
         (262_147, 1.0, True),
-        (262_147, 1.0, False),
+        (262_143, 1.0, False),
         (4_294_967_311, 0.999_999, True),
         (4_294_967_309, 0.999_999, False),
         (4_294_967_311, 1.0, True),

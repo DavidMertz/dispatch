@@ -6,6 +6,7 @@ See README.md for an historical discussion of this topic.
 
 from __future__ import annotations
 from collections import defaultdict, namedtuple
+from sys import maxsize
 from types import UnionType
 from typing import Any, Callable
 
@@ -76,18 +77,23 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
                 # Not a type annotation, so it's a predicate (store as a string)
                 predicate = parts[0].strip()
                 annotations[arg] = AnnotationInfo(Any, predicate)
+
     return annotations
 
 
 # =============================================================================
 # Define at least one "MRO" resolver.
 # =============================================================================
-def first_satisfiable(implementations: list[FunctionInfo]) -> Callable:
+def weighted_resolver(
+    implementations: list[FunctionInfo],
+    *args,
+    **kws,
+) -> Callable:
     """
-    Create a list of candidate implementations in declaration order.
+    Select an implementation by weighting satisfiable types and predicates.
 
-    Among this, select the first one that satisfies the predicates. If no
-    matching implementation is found, raise an exception.
+    If any type or predicate is directly violated, exclude that implementation.
+    If no matching implementation is found, raise an exception.
 
     Prior to PEP 484 and numerous compound types (Union[] specifically), it
     was possible to rank matches. That is no longer coherent.  For example:
@@ -100,7 +106,7 @@ def first_satisfiable(implementations: list[FunctionInfo]) -> Callable:
       [<class '__main__.SpecialInt'>, <class 'int'>, <class 'object'>]
 
     In some sense, `n` is "most like" a SpecialInt, a bit less like an int,
-    and just nominally like an object.  In this simple case, we could rank or
+    and just nominally like an object.  In this simple case, we can rank or
     weight such distances in evaluating several candidate implementations.
 
       >>> def add(a: int, b: int | float | complex):
@@ -111,9 +117,111 @@ def first_satisfiable(implementations: list[FunctionInfo]) -> Callable:
 
     We can sensibly measure the "fit" of the match of the first argument, but
     we cannot do so for the second argument.  It's simply a match or non-match.
+    We weight types by the following rules:
+
+      * If a type is incompatible with an argument, we subtract -sys.maxsize.
+      * If a type is compatible with typing.Any, we add +5 to the score.
+      * If a type is compatible with a UnionType, we add +10 to the score.
+      * If a type is compatible with a simple type, we add +20 to the score.
+      * If a type is compatible with a simple type, but farther removed in its 
+        MRO, subtract -1 for each step in the MRO.
+
+    If two signatures match on types (or are equally weighted, in any case),
+    then the predicates are weighted as follows:
+
+      * If both predicates are satisfied, the first implementation is chosen.
+      * If only one predicate is satisfied, that implementation is chosen.
+      * If one predicate is absent, the more specific implementation is chosen.
     """
-    fn = implementations[0].fn  # XXX
-    return fn
+
+    def best_implementation(*args, **kws):
+        best_score = 0
+        position_boost = len(args)
+        implementation = None
+        scores = {}
+
+        _locals = {}  # Accumulate local variables as args are passed in
+        for imp in implementations:
+            # More arguments is "better" than fewer arguments
+            score = len(args)
+
+            # First add weights based on positional arguments
+            for arg, info in zip(
+                args,
+                imp.annotation_info.items(),
+            ):
+                varname, (type_, predicate) = info
+                _locals[varname] = arg
+                score += position_boost
+                position_boost -= 1
+
+                # Based on type information
+                if type_ == Any:
+                    score += 5  # compatible with typing.Any
+                elif not isinstance(arg, type_):
+                    score -= maxsize  # incompatible type
+                elif isinstance(type_, UnionType):
+                    score += 10  # compatible with UnionType
+                else:
+                    score += 20  # compatible with a simple type
+                    # Subtract distance in MRO
+                    offset = type(arg).__mro__.index(type_)
+                    score -= offset
+
+                # If types rule out implemention, no need for predicates
+                if score < 0:
+                    continue
+
+                # Based on predicates (the `True` predicate doesn't exclude
+                # the implementation, but neither does it improve its score)
+                if predicate == "True":
+                    break
+                result = eval(predicate, locals=_locals)
+                if not result:
+                    score -= maxsize  # incompatible predicate
+                elif predicate != "True":
+                    score += 3  # non-trivial predicate satisfied
+
+            # If we already reached a negative score, skip keyword arguments
+            if score < 0:
+                continue
+
+            # Add weights based on keywords (similar to positional args)
+            for varname, arg in kws.items():
+                info = imp.annotation_info[varname]
+
+                _locals[varname] = arg
+                type_, predicate = info
+
+                if type_ == Any:
+                    score += 5  # compatible with typing.Any
+                elif not isinstance(arg, type_):
+                    score -= maxsize  # incompatible type
+                elif isinstance(type_, UnionType):
+                    score += 10  # compatible with UnionType
+                else:
+                    score += 20  # compatible with basic type
+                    offset = type(arg).__mro__.index(type_)
+                    score -= offset
+
+                # Based on predicates (the `True` predicate doesn't exclude
+                # the implementation, but neither does it improve its score)
+                result = eval(predicate, locals=_locals)
+                if not result:
+                    score -= maxsize  # incompatible predicate
+                elif predicate != "True":
+                    score += 31  # non-trivial predicate satisfied
+
+            if score > best_score:
+                best_score = score
+                implementation = imp
+
+        if implementation is None:
+            raise ValueError(f"No matching implementation for {args=}, {kws=}")
+
+        return implementation.fn(*args, **kws)
+
+    return best_implementation
 
 
 # =============================================================================
@@ -151,11 +259,7 @@ class DispatcherMeta(type):
         "Implements multiple and predicative dispatch, if bound name exists."
         if not (implementations := cls.funcs.get(name, [])):
             raise AttributeError(f"No implementations are bound to {name}")
-        if not (implementation := cls.resolver(implementations)):
-            raise ValueError(
-                f"No implementation satisfies types and predicates for {name}"
-            )
-        return implementation
+        return cls.resolver(implementations)
 
 
 def get_dispatcher(name="Dispatcher"):
@@ -167,7 +271,7 @@ def get_dispatcher(name="Dispatcher"):
 
         def __new__(cls, fn: Callable | None = None, *, name: str = ""):
             new = super().__new__(cls)
-            new.resolver = first_satisfiable
+            new.resolver = weighted_resolver
 
             if fn is not None:
                 name = fn.__name__
@@ -176,7 +280,7 @@ def get_dispatcher(name="Dispatcher"):
             elif not name:
                 raise ValueError(
                     f"{cls.__name__} must be used as a decorator, "
-                    "or to call a bound method"
+                    "or to call a bound method)"
                 )
             elif name:
                 new.__class__.to_bind = name

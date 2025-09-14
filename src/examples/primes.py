@@ -1,5 +1,4 @@
 from math import nextafter
-import math
 import secrets
 
 
@@ -62,10 +61,9 @@ def mr_primality(n, confidence=0.999_999):
     return True
 
 
-
 def aks_primality(n):
     "Placeholder for AKS primality test."
-    # Terrible, but will identify the one large prime number used in tests
+    # Terrible, but identify the one large prime number used in tests
     if n == 4_294_967_311:
         return True
     else:
