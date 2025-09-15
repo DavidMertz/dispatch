@@ -30,7 +30,9 @@ def is_small_prime(n, confidence=1.0) -> bool:
 
 
 def test_nums_str():
-    assert str(nums) == "nums with 1 function bound to 4 implementations"
+    assert (
+        str(nums) == "nums with 1 function bound to 4 implementations (0 extra types)"
+    )
 
 
 def test_nums_describe(capsys):
@@ -101,6 +103,7 @@ def test_aks_primality(n, confidence, result):
 
 def test_best_satisfiable():
     pass
+
 
 @pytest.mark.parametrize(
     "n,confidence,result",

@@ -8,29 +8,62 @@ class SpecialInt(int):
     pass
 
 
-N = SpecialInt(13)
+n_spec = SpecialInt(13)
 
-Disp = get_dispatcher("Disp")
+disp = get_dispatcher(name="Dispatch", extra_types=[SpecialInt])
 
-@Disp
-def show(a: int, b: int | float | complex):  # type: ignore
+
+@disp(name="show")
+def show_int_union(a: int, b: int | float | complex):  # type: ignore
     return f"{a}: int, {b}: int | float | complex"
 
 
-@Disp
-def show(a: int, b: int):  # type: ignore
+@disp(name="show")
+def show_int_int(a: int, b: int):  # type: ignore
     return f"{a}: int, {b}: int"
 
 
-@Disp
-def show(a: SpecialInt, b: int):  # type: ignore
-    return f"{a}: SpecialInt, {b}: int | float | complex"
+@disp(name="show")
+def show_special_int(a: SpecialInt, b: int):  # type: ignore
+    return f"{a}: SpecialInt, {b}: int"
 
 
-@Disp
-def show(a: int, b: SpecialInt):  # type: ignore
+@disp(name="show")
+def show_int_special(a: int, b: SpecialInt):  # type: ignore
     return f"{a}: int, {b}: SpecialInt"
 
 
+@disp(name="show")
+def show_special_special(a: SpecialInt, b: SpecialInt):  # type: ignore
+    return f"{a}: SpecialInt, {b}: SpecialInt"
+
+
+def test_disp_str():
+    assert (
+        str(disp)
+        == "Dispatch with 1 function bound to 5 implementations (1 extra types)"
+    )
+
+
+def test_resolver():
+    assert disp.resolver.__name__ == "weighted_resolver"
+
+
+def test_extra_types():
+    assert disp.extra_types == [SpecialInt]
+
+
 def test_show_int_union():
-    assert Disp.show(11, 3.1415) == "11: int, 3.1415: int | float | complex"
+    assert disp.show(11, 3.14) == "11: int, 3.14: int | float | complex"
+
+
+def test_show_special_int():
+    assert disp.show(n_spec, 7) == "13: SpecialInt, 7: int"
+
+
+def test_show_int_special():
+    assert disp.show(11, n_spec) == "11: int, 13: SpecialInt"
+
+
+def test_show_special_special():
+    assert disp.show(n_spec, n_spec) == "13: SpecialInt, 13: SpecialInt"

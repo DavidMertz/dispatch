@@ -34,8 +34,14 @@ def test_multiple_implementations():
     assert say is not Dispatcher
     assert isinstance(say, Dispatcher)
     assert isinstance(type(say), type(Dispatcher))
-    assert str(Dispatcher) == "Dispatcher with 1 function bound to 1 implementation"
-    assert str(say) == "Dispatcher with 1 function bound to 1 implementation"
+    assert (
+        str(Dispatcher)
+        == "Dispatcher with 1 function bound to 1 implementation (0 extra types)"
+    )
+    assert (
+        str(say)
+        == "Dispatcher with 1 function bound to 1 implementation (0 extra types)"
+    )
     first_say_id = id(say)
 
     @Dispatcher(name="say")
@@ -44,7 +50,10 @@ def test_multiple_implementations():
 
     # From parameterized decorator we get the class object itself
     assert say_two_things is Dispatcher
-    assert str(say_two_things) == "Dispatcher with 1 function bound to 2 implementations"
+    assert (
+        str(say_two_things)
+        == "Dispatcher with 1 function bound to 2 implementations (0 extra types)"
+    )
 
     @Dispatcher
     def say(n: int & n > 100):  # type: ignore
@@ -54,4 +63,8 @@ def test_multiple_implementations():
     assert say is not Dispatcher
     assert id(say) != first_say_id
     assert isinstance(type(say), type(Dispatcher))
-    assert str(say) == str(Dispatcher) == "Dispatcher with 1 function bound to 3 implementations"
+    assert (
+        str(say)
+        == str(Dispatcher)
+        == "Dispatcher with 1 function bound to 3 implementations (0 extra types)"
+    )

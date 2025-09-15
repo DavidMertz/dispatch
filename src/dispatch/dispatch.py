@@ -86,6 +86,7 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
 # =============================================================================
 def weighted_resolver(
     implementations: list[FunctionInfo],
+    extra_types: list[type],
     *args,
     **kws,
 ) -> Callable:
@@ -123,7 +124,7 @@ def weighted_resolver(
       * If a type is compatible with typing.Any, we add +5 to the score.
       * If a type is compatible with a UnionType, we add +10 to the score.
       * If a type is compatible with a simple type, we add +20 to the score.
-      * If a type is compatible with a simple type, but farther removed in its 
+      * If a type is compatible with a simple type, but farther removed in its
         MRO, subtract -1 for each step in the MRO.
 
     If two signatures match on types (or are equally weighted, in any case),
@@ -138,9 +139,12 @@ def weighted_resolver(
         best_score = 0
         position_boost = len(args)
         implementation = None
-        scores = {}
 
-        _locals = {}  # Accumulate local variables as args are passed in
+        # Accumulate local vars as args are passed in, and extra_types if any
+        _locals = {}  
+        for extra_type in extra_types:
+            _locals[extra_type.__name__] = extra_type 
+
         for imp in implementations:
             # More arguments is "better" than fewer arguments
             score = len(args)
@@ -154,7 +158,7 @@ def weighted_resolver(
                 _locals[varname] = arg
                 score += position_boost
                 position_boost -= 1
-
+                
                 # Based on type information
                 if type_ == Any:
                     score += 5  # compatible with typing.Any
@@ -165,7 +169,7 @@ def weighted_resolver(
                 else:
                     score += 20  # compatible with a simple type
                     # Subtract distance in MRO
-                    offset = type(arg).__mro__.index(type_)
+                    offset = 2 * type(arg).__mro__.index(type_)
                     score -= offset
 
                 # If types rule out implemention, no need for predicates
@@ -192,7 +196,7 @@ def weighted_resolver(
 
                 _locals[varname] = arg
                 type_, predicate = info
-
+                
                 if type_ == Any:
                     score += 5  # compatible with typing.Any
                 elif not isinstance(arg, type_):
@@ -201,7 +205,7 @@ def weighted_resolver(
                     score += 10  # compatible with UnionType
                 else:
                     score += 20  # compatible with basic type
-                    offset = type(arg).__mro__.index(type_)
+                    offset = 2 * type(arg).__mro__.index(type_)
                     score -= offset
 
                 # Based on predicates (the `True` predicate doesn't exclude
@@ -215,6 +219,7 @@ def weighted_resolver(
             if score > best_score:
                 best_score = score
                 implementation = imp
+                print(f"Best match ({score}): {implementation.fn.__name__}")  # XXX
 
         if implementation is None:
             raise ValueError(f"No matching implementation for {args=}, {kws=}")
@@ -247,9 +252,11 @@ class DispatcherMeta(type):
     def __str__(cls):
         n_names = sum(1 for f in cls.funcs if f not in namespace_detritus)
         n_impls = sum(len(funcs) for funcs in cls.funcs.values())
+        n_extra_types = len(cls.extra_types)
         return (
             f"{cls.__name__} with {n_names} function{'s' if n_names > 1 else ''} "
-            f"bound to {n_impls} implementation{'s' if n_impls > 1 else ''}"
+            f"bound to {n_impls} implementation{'s' if n_impls > 1 else ''} "
+            f"({n_extra_types} extra types)"
         )
 
     def describe(cls):
@@ -259,19 +266,25 @@ class DispatcherMeta(type):
         "Implements multiple and predicative dispatch, if bound name exists."
         if not (implementations := cls.funcs.get(name, [])):
             raise AttributeError(f"No implementations are bound to {name}")
-        return cls.resolver(implementations)
+        return cls.resolver(implementations, cls.extra_types)
 
 
-def get_dispatcher(name="Dispatcher"):
+def get_dispatcher(name="Dispatcher", resolver=weighted_resolver, extra_types=[]):
     "Manufacuture as many Dispatcher objects as needed."
 
     class Dispatcher(metaclass=DispatcherMeta):
         funcs = defaultdict(list)
         to_bind = None
 
-        def __new__(cls, fn: Callable | None = None, *, name: str = ""):
+        def __new__(
+            cls,
+            fn: Callable | None = None,
+            *,
+            name: str = "",
+        ):
             new = super().__new__(cls)
-            new.resolver = weighted_resolver
+            new.resolver = resolver
+            new.extra_types = extra_types
 
             if fn is not None:
                 name = fn.__name__
@@ -307,6 +320,14 @@ def get_dispatcher(name="Dispatcher"):
         @resolver.setter
         def resolver(self, resolver):
             self.__class__.resolver = resolver
+
+        @property
+        def extra_types(self):
+            return self.__class__.extra_types  # type: ignore
+
+        @extra_types.setter
+        def extra_types(self, extra_types):
+            self.__class__.extra_types = extra_types
 
     Dispatcher.__name__ = name
     return Dispatcher
