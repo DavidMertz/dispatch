@@ -1,3 +1,4 @@
+from __future__ import annotations
 from math import nextafter
 import secrets
 
@@ -68,3 +69,34 @@ def aks_primality(n):
         return True
     else:
         return False
+
+
+def gaussian_prime(c: complex) -> bool:
+    """
+    Check if the complex number 'c = a + bi', is a Gaussian prime.
+
+    1. The real and imaginary parts of the complex number must be integers.
+    2. If a ≠ 0 and b ≠ 0, then c is prime IFF a² + b² is an ordinary prime.
+    3. if a == 0, then c is prime IFF b in an ordinary prime and |b| ≡ 3 (mod 4).
+    4. if b == 0, then c is prime IFF a in an ordinary prime and |a| ≡ 3 (mod 4).
+
+    NOTE: Because Python complex numbers are pairs of floating point numbers,
+    rather than pairs of unbounded integers, for complex numbers of large
+    magnitude, floating point limitations will cause incorrect results.
+
+    For 64-bit IEEE-754 floating point numbers, "large" means, roughly, more
+    than 9,007,199,254,740,993 (2⁵³ + 1).
+
+    This function is for demonstration of the dispatch module, and should not
+    be used for real-world applications dealing with large numbers.
+    """
+    a, b = c.real, c.imag
+    if not a.is_integer() or not a.is_integer():
+        return False
+    elif a != 0 and b != 0:
+        sum_squares = int(a**2 + b**2)
+        return mr_primality(sum_squares)
+    elif a == 0:
+        return abs(int(b)) % 4 == 3 and mr_primality(b)
+    else:  # b == 0:
+        return abs(int(a)) % 4 == 3 and mr_primality(a)

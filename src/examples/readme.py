@@ -3,28 +3,20 @@ from math import sqrt
 
 from dispatch.dispatch import get_dispatcher
 from examples.data import primes_16bit
-from examples.primes import aks_primality, mr_primality
+from examples.primes import aks_primality, gaussian_prime, mr_primality
 
 nums = get_dispatcher("nums")
 
 
 @nums(name="is_prime")
-def is_tiny_prime(  # type: ignore
-    n: int & 0 < n < 2**16,  # type: ignore
-    confidence: float | int = 1.0,
-) -> bool:
+def is_tiny_prime(n: int & 0 < n < 2**16) -> bool:  # type: ignore
     "Check primes from pre-computed list (confidence implicitly 1.0)"
-    _ = confidence  # type: ignore
     return n in primes_16bit
 
 
 @nums
-def is_prime(
-    n: n < 2**32,  # type: ignore
-    confidence=1.0,
-) -> bool:
+def is_prime(n: n < 2**32) -> bool:  # type: ignore
     "Check prime factors for n < √2³² (confidence implicitly 1.0)"
-    _ = confidence  # type: ignore
     ceil = sqrt(n)
     for prime in primes_16bit:
         if prime > ceil:
@@ -52,30 +44,33 @@ def agrawal_kayal_saxena(
     _ = confidence  # type: ignore
     return aks_primality(n)
 
+nums(name="is_prime")(gaussian_prime)  # Bind to the Gaussian prime function
 
 print(nums)  # -->
-# nums with 1 function bound to 4 implementations
+# nums with 1 function bound to 5 implementations (0 extra types)"
 nums.describe()  # -->
 # nums bound implementations:
-# (0) is_prime
+# (0) is_prime (re-bound 'is_tiny_prime')
 #     n: int ∩ 0 < n < 2 ** 16
-#     confidence: float ∩ True
 # (1) is_prime
 #     n: Any ∩ n < 2 ** 32
-#     confidence: Any ∩ True
 # (2) is_prime (re-bound 'miller_rabin')
 #     n: int ∩ n >= 2 ** 32
 #     confidence: float ∩ True
 # (3) is_prime (re-bound 'agrawal_kayal_saxena')
 #     n: int ∩ n >= 2 ** 32
 #     confidence: float ∩ confidence == 1.0
+# (4) is_prime (re-bound 'gaussian_prime')
+#     c: complex ∩ True
 
 
-print(f"Tiny {nums.is_prime(64_489, 1)=}")      # True by direct search
-print(f"Tiny {nums.is_prime(64_487, 1.0)=}")    # False by direct search
-print(f"Small {nums.is_prime(262_147)=}")        # True by trial division
-print(f"Small {nums.is_prime(262_143)=}")        # False by trial division
+print(f"Tiny {nums.is_prime(64_489)=}")  # True by direct search
+print(f"Tiny {nums.is_prime(64_487)=}")  # False by direct search
+print(f"Small {nums.is_prime(262_147)=}")  # True by trial division
+print(f"Small {nums.is_prime(262_143)=}")  # False by trial division
 print(f"Fuzzy {nums.is_prime(4_294_967_311)=}")  # True by Miller-Rabin test
 print(f"Fuzzy {nums.is_prime(4_294_967_309)=}")  # False by Miller-Rabin test
 print(f"Definite {nums.is_prime(4_294_967_311, confidence=1.0)=}")  # True by AKS test
 print(f"Definite {nums.is_prime(4_294_967_309, confidence=1.0)=}")  # False by AKS test
+print(f"Gaussian {nums.is_prime(-4 + 5j)=}")  # True by Gaussian prime test
+print(f"Gaussian {nums.is_prime(+4 - 7j)=}")  # False by Gaussian prime test

@@ -45,8 +45,8 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
     """
     annotations = {}
     _locals = {}
-    # In "normal operation" a Dispatcher will bind `extra_types` to each 
-    # function (often simply as an empty list). In unit tests or special 
+    # In "normal operation" a Dispatcher will bind `extra_types` to each
+    # function (often simply as an empty list). In unit tests or special
     # uses, this might be called with an unadorned function.
     if hasattr(fn, "extra_types"):
         for extra_type in fn.extra_types:  # type: ignore
@@ -156,6 +156,12 @@ def weighted_resolver(
             # More arguments is "better" than fewer arguments
             score = len(args)
 
+            # An implementation with too few arguments is incompatible
+            max_args = imp.fn.__code__.co_argcount 
+            if len(args) > max_args:
+                score -= maxsize
+                continue
+
             # First add weights based on positional arguments
             for arg, info in zip(
                 args,
@@ -182,7 +188,12 @@ def weighted_resolver(
                 # the implementation, but neither does it improve its score)
                 if predicate == "True":
                     pass
-                result = eval(predicate, locals=_locals)  # type: ignore
+                try:
+                    result = eval(predicate, locals=_locals)  # type: ignore
+                except Exception:
+                    # If a predicate cannot be evaluated, stipulate False.
+                    # E.g. Complex arg with predicate of inequality with an int
+                    result = False  # Assume predicate is False
                 if not result:
                     score -= maxsize  # incompatible predicate
                 elif predicate != "True":
@@ -190,7 +201,10 @@ def weighted_resolver(
 
             # Add weights based on keywords (similar to positional args)
             for varname, arg in kws.items():
-                info = imp.annotation_info[varname]
+                # An implementation might not have a given keyword argument
+                if not (info := imp.annotation_info.get(varname)):
+                    score -= maxsize
+                    continue
 
                 _locals[varname] = arg
                 type_, predicate = info
