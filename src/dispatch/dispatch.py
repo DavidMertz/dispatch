@@ -44,6 +44,14 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
       We can assume, however, that anything after an ampersand is a predicate.
     """
     annotations = {}
+    _locals = {}
+    # In "normal operation" a Dispatcher will bind `extra_types` to each 
+    # function (often simply as an empty list). In unit tests or special 
+    # uses, this might be called with an unadorned function.
+    if hasattr(fn, "extra_types"):
+        for extra_type in fn.extra_types:  # type: ignore
+            _locals[extra_type.__name__] = extra_type
+
     # Locals defined in the function scope are in `co_varnames`, but they come
     # _after_ the formal arguments whose count is `co_argcount`.
     for arg in fn.__code__.co_varnames[: fn.__code__.co_argcount]:
@@ -55,7 +63,7 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
             # Both type and predicate (maybe)
             type_, predicate = parts
             try:
-                type_ = eval(type_)
+                type_ = eval(type_, locals=_locals)  # type: ignore
                 if isinstance(type_, (type, UnionType)):
                     annotations[arg] = AnnotationInfo(type_, predicate.strip())
             except (TypeError, NameError, Exception) as _err:
@@ -66,7 +74,7 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
             try:
                 # Is first thing a type annotation?
                 # We will usually raise an exception if not a valid type
-                type_ = eval(parts[0])
+                type_ = eval(parts[0], locals=_locals)  # type: ignore
                 if isinstance(type_, (type, UnionType)):
                     annotations[arg] = AnnotationInfo(type_, "True")  # No predicate
                 else:
@@ -86,7 +94,6 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
 # =============================================================================
 def weighted_resolver(
     implementations: list[FunctionInfo],
-    extra_types: list[type],
     *args,
     **kws,
 ) -> Callable:
@@ -134,18 +141,18 @@ def weighted_resolver(
       * If only one predicate is satisfied, that implementation is chosen.
       * If one predicate is absent, the more specific implementation is chosen.
     """
+    _, _ = args, kws  # Quiet the over-eager linter
 
     def best_implementation(*args, **kws):
         best_score = 0
-        position_boost = len(args)
         implementation = None
 
-        # Accumulate local vars as args are passed in, and extra_types if any
-        _locals = {}  
-        for extra_type in extra_types:
-            _locals[extra_type.__name__] = extra_type 
-
         for imp in implementations:
+            # Accumulate local vars as args are passed in, and extra_types if any
+            _locals = {}
+            for extra_type in imp.fn.extra_types:
+                _locals[extra_type.__name__] = extra_type
+
             # More arguments is "better" than fewer arguments
             score = len(args)
 
@@ -156,9 +163,7 @@ def weighted_resolver(
             ):
                 varname, (type_, predicate) = info
                 _locals[varname] = arg
-                score += position_boost
-                position_boost -= 1
-                
+
                 # Based on type information
                 if type_ == Any:
                     score += 5  # compatible with typing.Any
@@ -169,26 +174,19 @@ def weighted_resolver(
                 else:
                     score += 20  # compatible with a simple type
                     # Subtract distance in MRO
-                    offset = 2 * type(arg).__mro__.index(type_)
-                    score -= offset
-
-                # If types rule out implemention, no need for predicates
-                if score < 0:
-                    continue
+                    offset = type(arg).__mro__.index(type_)
+                    mro_bonus = 10 - offset
+                    score += mro_bonus
 
                 # Based on predicates (the `True` predicate doesn't exclude
                 # the implementation, but neither does it improve its score)
                 if predicate == "True":
-                    break
-                result = eval(predicate, locals=_locals)
+                    pass
+                result = eval(predicate, locals=_locals)  # type: ignore
                 if not result:
                     score -= maxsize  # incompatible predicate
                 elif predicate != "True":
                     score += 3  # non-trivial predicate satisfied
-
-            # If we already reached a negative score, skip keyword arguments
-            if score < 0:
-                continue
 
             # Add weights based on keywords (similar to positional args)
             for varname, arg in kws.items():
@@ -196,7 +194,7 @@ def weighted_resolver(
 
                 _locals[varname] = arg
                 type_, predicate = info
-                
+
                 if type_ == Any:
                     score += 5  # compatible with typing.Any
                 elif not isinstance(arg, type_):
@@ -205,12 +203,14 @@ def weighted_resolver(
                     score += 10  # compatible with UnionType
                 else:
                     score += 20  # compatible with basic type
-                    offset = 2 * type(arg).__mro__.index(type_)
-                    score -= offset
+                    # Subtract distance in MRO
+                    offset = type(arg).__mro__.index(type_)
+                    mro_bonus = 10 - offset
+                    score += mro_bonus
 
                 # Based on predicates (the `True` predicate doesn't exclude
                 # the implementation, but neither does it improve its score)
-                result = eval(predicate, locals=_locals)
+                result = eval(predicate, locals=_locals)  # type: ignore
                 if not result:
                     score -= maxsize  # incompatible predicate
                 elif predicate != "True":
@@ -219,13 +219,13 @@ def weighted_resolver(
             if score > best_score:
                 best_score = score
                 implementation = imp
-                print(f"Best match ({score}): {implementation.fn.__name__}")  # XXX
 
         if implementation is None:
             raise ValueError(f"No matching implementation for {args=}, {kws=}")
 
         return implementation.fn(*args, **kws)
 
+    # Return the closure returning the best implementation
     return best_implementation
 
 
@@ -269,7 +269,11 @@ class DispatcherMeta(type):
         return cls.resolver(implementations, cls.extra_types)
 
 
-def get_dispatcher(name="Dispatcher", resolver=weighted_resolver, extra_types=[]):
+def get_dispatcher(
+    name: str = "Dispatcher",
+    resolver: Callable = weighted_resolver,
+    extra_types: list = [],
+):
     "Manufacuture as many Dispatcher objects as needed."
 
     class Dispatcher(metaclass=DispatcherMeta):
@@ -284,10 +288,11 @@ def get_dispatcher(name="Dispatcher", resolver=weighted_resolver, extra_types=[]
         ):
             new = super().__new__(cls)
             new.resolver = resolver
-            new.extra_types = extra_types
+            new.extra_types = extra_types  # type: ignore
 
             if fn is not None:
                 name = fn.__name__
+                fn.extra_types = extra_types  # type: ignore
                 implementation = function_info(fn, annotation_info(fn))
                 new.__class__.funcs[name].append(implementation)
             elif not name:
@@ -308,6 +313,7 @@ def get_dispatcher(name="Dispatcher", resolver=weighted_resolver, extra_types=[]
 
         def __call__(self, fn):
             name = self.__class__.to_bind or fn.__name__
+            fn.extra_types = self.__class__.extra_types
             implementation = function_info(fn, annotation_info(fn))
             self.__class__.funcs[name].append(implementation)
             self.__class__.to_bind = None  # Clear the binding after using it
