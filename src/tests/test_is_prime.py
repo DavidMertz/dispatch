@@ -31,7 +31,7 @@ def is_small_prime(n, confidence=1.0) -> bool:
 
 def test_nums_str():
     assert (
-        str(nums) == "nums with 1 function bound to 5 implementations (0 extra types)"
+        str(nums) == "nums with 2 functions bound to 6 implementations (0 extra types)"
     )
 
 
@@ -50,6 +50,8 @@ def test_nums_describe(capsys):
         "    confidence: float ∩ confidence == 1.0\n"
         "(4) is_prime (re-bound 'gaussian_prime')\n"
         "    c: complex ∩ True\n"
+        "(0) is_twin_prime\n"
+        "    n: int ∩ True\n"
     )
     nums.describe()
     out, _err = capsys.readouterr()
