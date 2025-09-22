@@ -5,7 +5,7 @@ code implementations that depend both on the annotated type of arguments and
 on predicates that are fulfilled by arguments.
 
 Specifically, these dispatch decisions are arranged in a manner different than
-with blocks of `if` or `switch` statements, and also differently from
+with blocks of `if/elif` or `match/case` statements, and also differently from
 inheritance hierarchies that resolve to a narrowest descendant type containing
 a given method.
 
@@ -172,7 +172,7 @@ def doIt(foo, other):
 
 @doIt.when("isinstance(foo,int) and isinstance(other,str)")
 def doIt(foo, other):
-    prin  "foo is an unrestricted int |", foo, other
+    print  "foo is an unrestricted int |", foo, other
 
 @doIt.when("isinstance(foo,int) and 3<=foo<=17 and isinstance(other,str)")
 def doIt(foo, other):

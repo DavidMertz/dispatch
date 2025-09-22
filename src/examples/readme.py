@@ -10,13 +10,13 @@ nums = get_dispatcher("nums")
 
 @nums(name="is_prime")
 def is_tiny_prime(n: int & 0 < n < 2**16) -> bool:  # type: ignore
-    "Check primes from pre-computed list (confidence implicitly 1.0)"
+    "Check primes from pre-computed list"
     return n in primes_16bit
 
 
 @nums
-def is_prime(n: n < 2**32) -> bool:  # type: ignore
-    "Check prime factors for n < √2³² (confidence implicitly 1.0)"
+def is_prime(n: 0 < n < 2**32) -> bool:  # type: ignore
+    "Check prime factors for n < √2³²"
     ceil = sqrt(n)
     for prime in primes_16bit:
         if prime > ceil:

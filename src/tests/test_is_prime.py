@@ -41,7 +41,7 @@ def test_nums_describe(capsys):
         "(0) is_prime (re-bound 'is_tiny_prime')\n"
         "    n: int ∩ 0 < n < 2 ** 16\n"
         "(1) is_prime\n"
-        "    n: Any ∩ n < 2 ** 32\n"
+        "    n: Any ∩ 0 < n < 2 ** 32\n"
         "(2) is_prime (re-bound 'miller_rabin')\n"
         "    n: int ∩ n >= 2 ** 32\n"
         "    confidence: float ∩ True\n"
