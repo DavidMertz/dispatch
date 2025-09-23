@@ -280,7 +280,7 @@ class DispatcherMeta(type):
         "Implements multiple and predicative dispatch, if bound name exists."
         if not (implementations := cls.funcs.get(name, [])):
             raise AttributeError(f"No implementations are bound to {name}")
-        return cls.resolver(implementations, cls.extra_types)
+        return cls.resolver(implementations)
 
 
 def get_dispatcher(

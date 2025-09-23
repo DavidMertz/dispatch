@@ -53,7 +53,7 @@ def is_prime(n: int & 0 < n < 2**16) -> bool:
     return n in primes_16bit
 
 @nums
-def is_prime(n: n < 2**32) -> bool:
+def is_prime(n: 0 < n < 2**32) -> bool:
     "Check prime factors for n < √2³²"
     ceil = sqrt(n)
     for prime in primes_16bit:
