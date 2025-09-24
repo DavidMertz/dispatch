@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict, namedtuple
 from sys import maxsize
 from types import UnionType
-from typing import Any, Callable
+from typing import Any, Callable, Collection
 
 namespace_detritus = [
     "_ipython_canary_method_should_not_exist_",
@@ -286,7 +286,7 @@ class DispatcherMeta(type):
 def get_dispatcher(
     name: str = "Dispatcher",
     resolver: Callable = weighted_resolver,
-    extra_types: list = [],
+    extra_types: Collection = set(),
 ):
     "Manufacuture as many Dispatcher objects as needed."
 
@@ -302,11 +302,11 @@ def get_dispatcher(
         ):
             new = super().__new__(cls)
             new.resolver = resolver
-            new.extra_types = extra_types  # type: ignore
+            new.extra_types = set(extra_types)  # type: ignore
 
             if fn is not None:
                 name = fn.__name__
-                fn.extra_types = extra_types  # type: ignore
+                fn.extra_types = set(extra_types)  # type: ignore
                 implementation = function_info(fn, annotation_info(fn))
                 new.__class__.funcs[name].append(implementation)
             elif not name:
