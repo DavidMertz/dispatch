@@ -2,4 +2,4 @@ secrets/**
 dist/**
 **/__pycache__/**
 Session.vim                
-
+**/.~**
