@@ -50,7 +50,7 @@ def test_resolver():
 
 
 def test_extra_types():
-    assert disp.extra_types == [SpecialInt]
+    assert disp.extra_types == {SpecialInt}
 
 
 def test_show_int_union():
