@@ -56,3 +56,35 @@ def test_extra_func_call():
 
     assert sizer.about(5) == "5 is some integer"
     assert sizer.about(150) == "150 is a large integer"
+
+
+def test_extra_func_latebound_named():
+    "In this test, we explicitly indicate both `name` and `using`"
+    sizer = get_dispatcher("sizer")
+
+    @sizer(name="about", using=[isLarge])
+    def about_large(a: int & isLarge(a)):
+        return f"{a} is a large integer"
+
+    @sizer
+    def about(a: int):
+        return f"{a} is some integer"
+
+    assert sizer.about(5) == "5 is some integer"
+    assert sizer.about(150) == "150 is a large integer"
+
+
+def test_extra_func_latebound_unnamed():
+    "In this test, we explicitly indicate both `name` and `using`"
+    sizer = get_dispatcher("sizer")
+
+    @sizer(using=[isLarge])
+    def about(a: int & isLarge(a)):
+        return f"{a} is a large integer"
+
+    @sizer
+    def about(a: int):
+        return f"{a} is some integer"
+
+    assert sizer.about(5) == "5 is some integer"
+    assert sizer.about(150) == "150 is a large integer"

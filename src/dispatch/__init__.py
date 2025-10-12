@@ -56,4 +56,3 @@ function), Phillip allowed us to write things like this:
     def doIt(foo, other):
         print "foo is between 0 and 1000 |", foo, other
 """
-

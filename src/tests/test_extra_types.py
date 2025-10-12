@@ -38,10 +38,7 @@ def test_extra_types_repr():
     _ = add
 
     assert repr(add) == (
-        "math_ops bound implementations:\n"
-        "(0) add\n"
-        "    a: int ∩ True\n"
-        "    b: int ∩ True"
+        "math_ops bound implementations:\n(0) add\n    a: int ∩ True\n    b: int ∩ True"
     )
 
 

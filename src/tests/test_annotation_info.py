@@ -81,8 +81,10 @@ def test_predicate_only():
         "c": AnnotationInfo(Any, "True"),
     }
 
+
 def non_contextual_predicates(a: 2 + 2 == 4, b: 5 < 4):  # type: ignore
     return a + b
+
 
 def test_non_contextual_predicates():
     annotations = annotation_info(non_contextual_predicates)
@@ -95,7 +97,7 @@ def test_non_contextual_predicates():
 def type_and_non_contextual_predicates(
     a: int & 2 + 2 == 4 & 4 < 5,  # type: ignore
     b: int | float & 5 < 4,  # type: ignore
-): 
+):
     return a + b
 
 

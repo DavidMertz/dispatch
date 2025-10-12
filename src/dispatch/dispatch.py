@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict, namedtuple
 from sys import maxsize
 from types import UnionType
-from typing import Any, Callable, Collection
+from typing import Any, Callable, Collection, Mapping
 
 namespace_detritus = [
     "_ipython_canary_method_should_not_exist_",
@@ -18,6 +18,7 @@ namespace_detritus = [
 
 AnnotationInfo = namedtuple("AnnotationInfo", "type predicate")
 FunctionInfo = namedtuple("FunctionInfo", "fn annotation_info")
+SimpleValue = namedtuple("SimpleValue", "name value")
 
 
 def function_info(
@@ -49,8 +50,14 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
     # function (often simply as an empty list). In unit tests or special
     # uses, this might be called with an unadorned function.
     if hasattr(fn, "extra_types"):
-        for extra_type in fn.extra_types:  # type: ignore
-            _locals[extra_type.__name__] = extra_type
+        for extra in fn.extra_types:
+            # We might add simple values like x=42 to _locals
+            if isinstance(extra, SimpleValue):
+                key, val = extra
+                _locals[key] = val
+            # Otherwise it's a class, function, etc that has a name
+            else:
+                _locals[extra.__name__] = extra
 
     # Locals defined in the function scope are in `co_varnames`, but they come
     # _after_ the formal arguments whose count is `co_argcount`.
@@ -141,23 +148,32 @@ def weighted_resolver(
       * If only one predicate is satisfied, that implementation is chosen.
       * If one predicate is absent, the more specific implementation is chosen.
     """
-    _, _ = args, kws  # Quiet the over-eager linter
 
     def best_implementation(*args, **kws):
         best_score = 0
         implementation = None
+        # Might be a dry-run; if so, note that but remove from kws
+        dry_run = False
+        if "_dry_run" in kws:
+            dry_run = kws.pop("_dry_run")
 
         for imp in implementations:
             # Accumulate local vars as args are passed in, and extra_types if any
             _locals = {}
-            for extra_type in imp.fn.extra_types:
-                _locals[extra_type.__name__] = extra_type
+            for extra in imp.fn.extra_types:
+                # We might add simple values like x=42 to _locals
+                if isinstance(extra, SimpleValue):
+                    key, val = extra
+                    _locals[key] = val
+                # Otherwise it's a class, function, etc that has a name
+                else:
+                    _locals[extra.__name__] = extra
 
             # More arguments is "better" than fewer arguments
             score = len(args)
 
             # An implementation with too few arguments is incompatible
-            max_args = imp.fn.__code__.co_argcount 
+            max_args = imp.fn.__code__.co_argcount
             if len(args) > max_args:
                 score -= maxsize
                 continue
@@ -237,7 +253,7 @@ def weighted_resolver(
         if implementation is None:
             raise ValueError(f"No matching implementation for {args=}, {kws=}")
 
-        return implementation.fn(*args, **kws)
+        return implementation.fn if dry_run else implementation.fn(*args, **kws)
 
     # Return the closure returning the best implementation
     return best_implementation
@@ -288,17 +304,15 @@ def get_dispatcher(
     resolver: Callable = weighted_resolver,
     extra_types: Collection = set(),
 ):
-    "Manufacuture as many Dispatcher objects as needed."
+    "Manufacture as many Dispatcher objects as needed."
 
     class Dispatcher(metaclass=DispatcherMeta):
         funcs = defaultdict(list)
         to_bind = None
+        using = []
 
         def __new__(
-            cls,
-            fn: Callable | None = None,
-            *,
-            name: str = "",
+            cls, fn: Callable | None = None, *, name: str = "", using: list = []
         ):
             new = super().__new__(cls)
             new.resolver = resolver
@@ -309,13 +323,17 @@ def get_dispatcher(
                 fn.extra_types = set(extra_types)  # type: ignore
                 implementation = function_info(fn, annotation_info(fn))
                 new.__class__.funcs[name].append(implementation)
-            elif not name:
+            elif name:
+                new.__class__.to_bind = name
+                new.__class__.using = using
+            elif using:
+                new.__class__.to_bind = None
+                new.__class__.using = using
+            else:
                 raise ValueError(
                     f"{cls.__name__} must be used as a decorator, "
                     "or to call a bound method)"
                 )
-            elif name:
-                new.__class__.to_bind = name
 
             return new
 
@@ -328,9 +346,26 @@ def get_dispatcher(
         def __call__(self, fn):
             name = self.__class__.to_bind or fn.__name__
             fn.extra_types = self.__class__.extra_types
+            # Perhaps inject additional names needed for this implementation
+            # but not available in the dispatcher as a whole.
+            for extra in self.__class__.using:
+                if hasattr(extra, "__name__"):
+                    fn.extra_types.add(extra)
+                elif isinstance(extra, dict):
+                    for k, v in extra.items():
+                        fn.extra_types.add(SimpleValue(k, v))
+                elif isinstance(extra, tuple) and len(extra) == 2:
+                    fn.extra_types.add(SimpleValue(*extra))
+                else:
+                    raise ValueError(
+                        "Injected names must have a __name__ attribute or "
+                        f"consist of a key/value pair ({extra})"
+                    )
+
             implementation = function_info(fn, annotation_info(fn))
             self.__class__.funcs[name].append(implementation)
             self.__class__.to_bind = None  # Clear the binding after using it
+            self.__class__.using = []  # Clear the extra exposed values
             return self.__class__
 
         @property

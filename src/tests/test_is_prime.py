@@ -1,8 +1,13 @@
+"""
+Test the primality functions, the dispatch decisions, and the dry_run() capability
+"""
+
 from __future__ import annotations
 from math import sqrt
 
 import pytest
 
+from dispatch.debug import dry_run
 from examples.data import primes_16bit
 from examples.primes import aks_primality, mr_primality
 from examples.readme import nums
@@ -127,3 +132,103 @@ def test_is_prime(n, confidence, result):
         assert nums.is_prime(n) == result
     else:
         assert nums.is_prime(n, confidence) == result
+
+
+@pytest.mark.parametrize(
+    "n, confidence, name",
+    [
+        (64_489, None, "is_tiny_prime"),
+        (64_487, None, "is_tiny_prime"),
+        (262_147, None, "is_prime"),
+        (262_143, None, "is_prime"),
+        (4_294_967_311, 0.999_999_999, "miller_rabin"),
+        (4_294_967_309, 0.999_999_999, "miller_rabin"),
+        (4_294_967_311, None, "miller_rabin"),  # Default MR confidence
+        (4_294_967_309, None, "miller_rabin"),  # Default MR confidence
+        (4_294_967_311, 1.0, "agrawal_kayal_saxena"),
+        (4_294_967_309, 1.0, "agrawal_kayal_saxena"),
+    ],
+)
+def test_dry_run_developer(n, confidence, name):
+    if confidence is None:
+        assert nums.is_prime(n, _dry_run=True).__name__ == name
+    else:
+        assert nums.is_prime(n, confidence, _dry_run=True).__name__ == name
+
+
+@pytest.mark.parametrize(
+    "n, confidence, name, annotations",
+    [
+        (
+            64_489,
+            None,
+            "is_tiny_prime",
+            {"n": "int & 0 < n < 2 ** 16", "return": "bool"},
+        ),
+        (
+            64_487,
+            None,
+            "is_tiny_prime",
+            {"n": "int & 0 < n < 2 ** 16", "return": "bool"},
+        ),
+        (262_147, None, "is_prime", {"n": "0 < n < 2 ** 32", "return": "bool"}),
+        (262_143, None, "is_prime", {"n": "0 < n < 2 ** 32", "return": "bool"}),
+        (
+            4_294_967_311,
+            0.999_999_999,
+            "miller_rabin",
+            {"confidence": "float", "n": "int & n >= 2 ** 32", "return": "bool"},
+        ),
+        (
+            4_294_967_309,
+            0.999_999_999,
+            "miller_rabin",
+            {"confidence": "float", "n": "int & n >= 2 ** 32", "return": "bool"},
+        ),
+        (
+            4_294_967_311,
+            None,
+            "miller_rabin",
+            {"confidence": "float", "n": "int & n >= 2 ** 32", "return": "bool"},
+        ),
+        (
+            4_294_967_309,
+            None,
+            "miller_rabin",
+            {"confidence": "float", "n": "int & n >= 2 ** 32", "return": "bool"},
+        ),
+        (
+            4_294_967_311,
+            1.0,
+            "agrawal_kayal_saxena",
+            {
+                "confidence": "float & confidence == 1.0",
+                "n": "int & n >= 2 ** 32",
+                "return": "bool",
+            },
+        ),
+        (
+            4_294_967_309,
+            1.0,
+            "agrawal_kayal_saxena",
+            {
+                "confidence": "float & confidence == 1.0",
+                "n": "int & n >= 2 ** 32",
+                "return": "bool",
+            },
+        ),
+    ],
+)
+def test_dry_run_api(n, confidence, name, annotations):
+    if confidence is None:
+        impl = dry_run(nums, "is_prime", n)
+        assert impl.name == name
+        assert isinstance(impl.id, int)  # Some func id()
+        assert impl.extra_types == set()
+        assert impl.annotations == annotations
+    else:
+        impl = dry_run(nums, "is_prime", n, confidence=confidence)
+        assert impl.name == name
+        assert isinstance(impl.id, int)  # some func id()
+        assert impl.extra_types == set()
+        assert impl.annotations == annotations
