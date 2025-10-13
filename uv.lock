@@ -153,26 +153,32 @@ wheels = [
 name = "gnosis-dispatch"
 version = "0.9.0"
 source = { editable = "." }
-dependencies = [
+
+[package.dev-dependencies]
+dev = [
     { name = "ipython" },
     { name = "markdown-include" },
     { name = "mkdocs" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pytest" },
-    { name = "ruff" },
     { name = "twine" },
+]
+lint = [
+    { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [
+
+[package.metadata.requires-dev]
+dev = [
     { name = "ipython", specifier = ">=9.5.0" },
     { name = "markdown-include", specifier = ">=0.8.1" },
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocstrings", extras = ["python"] },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff" },
     { name = "twine", specifier = ">=6.1.0" },
 ]
+lint = [{ name = "ruff" }]
 
 [[package]]
 name = "griffe"

@@ -2,17 +2,12 @@
 name = "gnosis-dispatch"
 version = "0.9.0"
 description = "Multiple and Predicative Dispatch"
+license = "BSD-2-Clause"
+license-file = "LICENSE"
+homepage = "https://github.com/DavidMertz/dispatch"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "ipython>=9.5.0",
-    "markdown-include>=0.8.1",
-    "mkdocs>=1.6.1",
-    "mkdocstrings[python]",
-    "pytest>=8.4.1",
-    "ruff",
-    "twine>=6.1.0",
-]
+dependencies = []
 authors = [
   { name="David Mertz, Ph.D.", email="mertz@gnosis.cx" },
 ]
@@ -23,8 +18,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-license = {text = "BSD 2-Clause License"}
-license-files = ["LICENSE"]
 
 [project.urls]
 Homepage = "https://github.com/DavidMertz/dispatch"
@@ -37,4 +30,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/dispatch"]
 
-
+[dependency-groups]
+dev = [
+    "ipython>=9.5.0",
+    "markdown-include>=0.8.1",
+    "mkdocs>=1.6.1",
+    "mkdocstrings[python]",
+    "pytest>=8.4.1",
+    "twine>=6.1.0",
+] 
+lint = [
+    "ruff",
+]
