@@ -10,10 +10,10 @@ inheritance hierarchies that resolve to a narrowest descendant type containing
 a given method.
 
 Numerous developers have created a version of a multimethods for Python (see
- [History.md](docs/HISTORY.md)).  Most or all of those use decorators, or
-other conventions, to attach multiple implementations to the same global name,
-and switch between implentations at call time within an ordinary-looking
-function.
+[History of Dispatch Concepts](HISTORY.md)).  Most or all of those use
+decorators, or other conventions, to attach multiple implementations to the
+same global name, and switch between implentations at call time within an
+ordinary-looking function.
 
 I have decided here on a slightly different API.  A "dispatcher" is a
 namespace in which multiple callable names may live, and calling each one
@@ -36,7 +36,7 @@ names.
 
 ## API
 
-The full [API documentation](docs/API.md) will have more details.  A quick
+The full [API documentation](API.md) will have more details.  A quick
 example might motivate usage.
 
 ```python

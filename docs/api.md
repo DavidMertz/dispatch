@@ -1,3 +1,5 @@
-# API Reference
+# API Documentation for gnosis-dispatch
 
-::: lumache
+## Making a dispatcher
+
+Something about `get_dispatcher()`
