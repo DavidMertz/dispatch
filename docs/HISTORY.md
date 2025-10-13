@@ -1,17 +1,27 @@
 # The Shroud of History
 
+Many people have implemented multiple dispatch in Python.  In concept, it's
+actually pretty easy to do.
+
+## Gnosis Magic
+
 I once implemented multiple dispatch (multimethods) in an ancient 2002 package:
 
   * https://pypi.org/project/Gnosis_Utils/
   * https://gnosis.cx/download/gnosis/magic/multimethods.py
 
-DON'T USE THAT!
+One thing I did, back in 2002 that no one else seems to have done, is to
+implement a choice of what "MRO" to use in choosing an implementation function.
 
-It might not work with anything after Python 2.3.  And even if it does, it's
-certainly not an elegant API for modern Python (it came before decorators or
-annotations, for example).
+This modern `gnosis-dispatch` package initially implements only one "weighted
+resolver", but the facility to pass in a `resolver` is inherent in the design
+(i.e. if I don't provide the one you want, you can implement your own).
 
-However, my article from the time is still basically correct and useful:
+The old `gnosis.magic.multimethods` might not work with anything after Python
+2.3.  And even if it does, it's certainly not an elegant API for modern Python
+(it came before decorators or annotations, for example).
+
+However, my article from the time is still generally correct and useful:
 
   * https://gnosis.cx/publish/programming/charming_python_b12.html
 
@@ -19,15 +29,11 @@ A great many other people have also implemented multiple dispatch (usually with
 the name "multimethods") in Python.  See https://pypi.org/search/?q=multimethods
 for many of these libraries.
 
-These implementations are probably all perfectly fine.  I haven't tried most of
-them, and the authors might make somewhat different choices about APIs than I do
-here.  But I'm sure that almost all of them work well.
+These implementations are probably all perfectly fine.  I haven't tried most
+of them, and the authors might make somewhat different choices about APIs than
+I do.  But I'm sure that almost all of them work well.
 
-One thing I did, back in 2002 that no one else seems to have done, is to
-implement a choice of what "MRO" to use in choosing an implementation function.
-This package may do that in post-beta versions, but the facility to pass in a
-`resolver` is inherent in the design (i.e. if I don't do it, you can implement
-your own).
+## PEAK Nostalgia
 
 Way back in the early 2000s, not too long after I first wrote about and
 implemented multiple dispatch in Python, a wondeful fellow Pythonista named
