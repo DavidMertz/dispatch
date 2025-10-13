@@ -1,4 +1,4 @@
-# API Documentation for gnosis-dispatch
+# Module API
 
 ## Making a dispatcher
 
