@@ -7,6 +7,30 @@ The main concerns in using `gnosis-dispatch` are:
 * Exposing needed objects and names to the dispatcher namespace.
 * Debugging and introspecting a dispatcher namespace
 
+## Glossary
+
+In this API documentation, a few words are used in a somewhat special way.
+All of these words are sometimes used differently, or more generically, in
+discussions outside this documentation.
+
+* The words _dispatcher_ or _namespace_ are roughly synonymous.  The special
+  objects that contain (potentially) multiple function, each with multiple
+  implementations go by these names.
+
+* The word _function_ herein usually refers to a *name* rather than a single
+  distinct object in memory.  Specifically, a dispatcher may _bind_ multiple
+  underlying implementations to this same name.
+
+* The word _implementation_ refers to a specific callable object (i.e. a
+  Python function) that is _bound_ to a _function_ in the sense this package
+  uses.  Several implementations are typically bound to the same name (within
+  a given dispatcher), and a runtime decision is made about which code to
+  utilize for a given call.
+
+* The words _bind_ or _bound_ are used in a common computer science and Python
+  sense.  It simply means that an object is given a name; but in the context
+  of this library that name specifically lives inside a dispatcher/namespace.
+
 ## When are annotations evaluated?
 
 PEP 649 proposed "Deferred Evaluation Of Annotations Using Descriptors" way
@@ -21,7 +45,7 @@ deferred evaluation. The current status is described at:
 
 Code that uses `gnosis-dispatch` should simply always include the "future"
 behavior by including a first line in your files that define function
-implementations of:
+implementations.  Just use a first line in your file of:
 
 ```python
 from __future__ import annotations
@@ -256,8 +280,85 @@ fallback without needing to change any existing implementations.
 
 ## Customizing bindings
 
-* Exposing needed objects and names to the dispatcher namespace.
-* Renaming bound functions.
+There are three ways of binding an implementation into a namespace, all of
+which are exhibited in the [Usage Example](USAGE.md).
+
+1. Decorate a function definition with the dispatcher itself.
+2. Call the dispatcher with configuration arguments and use the result of that
+   call as a decorator.
+3. Bind a previously existing function into the dispatcher namespace without
+   the explicit decorator syntax.  This form is implied by the internal
+   workings of decorators in general, but still looks notably different.
+
+Let's repeat the toy `Greet` example with a few variations in syntax.
+
+```python
+from __future__ import annotations
+from dispatch.dispatch import get_dispatcher
+Greet = get_dispatcher(name="Greet")
+
+@Greet
+def hello(name: str, lang: str & lang == "English"):
+    print(f"Hello {name}!")
+
+@Greet(name="hello")
+def habari(name: str, lang: lang == "Swahili"):
+    print(f"Habari {name}!")
+
+def happy_num(n: int):
+    print(f"Hey {n:,}, you are my favorite number!")
+
+Greet(name="hello")(happy_num)
+```
+
+All three of these styles have bound an implementation to the function `hello`
+of the `Greet` namespace.  We can see that in the `repr()` of the dispatcher:
+
+```python
+>>> Greet
+Greet bound implementations:
+(0) hello
+    name: str ∩ True
+    lang: str ∩ lang == 'English'
+(1) hello (re-bound 'habari')
+    name: str ∩ True
+    lang: Any ∩ lang == 'Swahili'
+(2) hello (re-bound 'happy_num')
+    n: int ∩ True
+```
+
+Calling these various implementations works just as shown earlier, but we can
+also introspect the "original" name used for a function.  The third
+implementation works without using the `@Greet` decorator form because
+`happy_num()` already contains an annotation to utilize.
+
+```python
+>>> Greet.hello("David", "English")
+Hello David!
+>>> Greet.hello("David", "Swahili")
+Habari David!
+>>> Greet.hello(3_141_529)
+Hey 3,141,529, you are my favorite number!
+```
+
+## Exposing names when binding implementations.
+
+When we create a dispatcher, we can include the `extra_types` argument to
+inject some custom data types into the dispatcher namespace. These added types
+are used (and required) to perform type checks in annotations.
+
+However, in a common scenario, the dispatcher you will use was created by
+someone else, or perhaps was developed by you in an earlier module that you do
+not wish to modify but only extend.  When you add implementations to an
+existing dispatcher, you can specify any additional names that might be needed
+for the dispatch decision.
+
+These additional names can include either data types used in annotations and
+also functions or constants used in predicates.  Let's extend the `Greet`
+dispatcher created just above.
+
+```python
+```
 
 ## Debugging a dispatcher
 
