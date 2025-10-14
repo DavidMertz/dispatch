@@ -126,7 +126,8 @@ from collections import namedtuple
 Person = namedtuple("Person", "name age income")
 class Employer(str): pass
 
-hr = get_dispatcher(name="HR_Department", extra_types=[Person, Employer])
+hr = get_dispatcher(name="HR_Department", 
+                    extra_types=[Person, Employer])
 
 @hr
 def hire(company: Employer, person: Person): ...
@@ -158,9 +159,9 @@ HR_Department bound implementations:
 
 A few binding examples were shown already when we saw how to create
 dispatchers.  In those simplest examples, only type information was
-demonstrated.  Let us create additional bound implementations that utilize
-both types and predicates.  Here we will also show that these dispatch
-decisions are, in fact, being honored by the dispatcher.
+demonstrated.  Let us create additional bound implementations that utilize both
+types and predicates.  Here we also show that these dispatch decisions are, in
+fact, being honored by the dispatcher.
 
 ```python
 from __future__ import annotations
@@ -214,10 +215,13 @@ Let's utilize this function that is bound to several implementations:
 ```python
 >>> Greet.hello("David", "English")
 Hello David!
+
 >>> Greet.hello("David", lang="Swahili")
 Habari David!
+
 >>> Greet.hello("Maria Rosalia Isabella")
 You have a very long name, Maria Rosalia Isabella
+
 >>> Greet.hello(3_141_592)
 Hey 3,141,592, you are my favorite number!
 ```
@@ -234,7 +238,8 @@ Traceback (most recent call last):
     Greet.hello("David", lang="Mandarin")
   File ~/git/dispatch/src/dispatch/dispatch.py:254 in best_implementation
     raise ValueError(f"No matching implementation for {args=}, {kws=}")
-ValueError: No matching implementation for args=('David',), kws={'lang': 'Mandarin'}
+ValueError: No matching implementation for 
+    args=('David',), kws={'lang': 'Mandarin'}
 ```
 
 Our dispatcher is extensible, however, and we can easily add a more generic
@@ -276,7 +281,8 @@ class RedInt(int): pass
 class CrimsonInt(RedInt): pass
 class BlueInt(int): pass
 
-colors = get_dispatcher("ColoredNumbers", extra_types=[RedInt, BlueInt, CrimsonInt])
+colors = get_dispatcher("ColoredNumbers", 
+                        extra_types=[RedInt, BlueInt, CrimsonInt])
 
 @colors
 def add(a: int, b: int):
