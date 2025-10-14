@@ -355,10 +355,37 @@ for the dispatch decision.
 
 These additional names can include either data types used in annotations and
 also functions or constants used in predicates.  Let's extend the `Greet`
-dispatcher created just above.
+dispatcher created just above.  A new script imports the `Greet` dispatcher.
 
 ```python
+from __future__ import annotations
+from collections import namedtuple
+
+from greetings import Greet
+
+Person = namedtuple("Person", "name lang")
+
+def short_name(name: str, limit=20) -> bool:
+    return len(name) <= limit
+
+@Greet(using=[Person, short_name, {"limit": 20}])
+def hello(person: Person & short_name(person.name, limit)):
+    name = f"{person.name} (short name)"
+    Greet.hello(name, person.lang)
+
+david = Person("David", "English")
+Greet.hello(david)
+# -> Hello David (short name)!
 ```
+
+There are three new values/names that the original author of the `greeetings`
+module (i.e. the code in the previous section) did not have reason to know
+about: `Person` (a class/type), `short_name` (a predicate function), and
+`limit` (an integer constant).
+
+Each of those names is used by the function signature of the newest `hello()`
+implementation, and hence the decorator indicates that they should be exposed
+to the dispatcher when a runtime dispatch decision is made.
 
 ## Debugging a dispatcher
 
