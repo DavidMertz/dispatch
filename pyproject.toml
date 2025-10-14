@@ -1,6 +1,6 @@
 [project]
 name = "gnosis-dispatch"
-version = "0.9.1"
+version = "1.0.0"
 description = "Multiple and Predicative Dispatch"
 license = "BSD-2-Clause"
 license-file = "LICENSE"
@@ -12,7 +12,7 @@ authors = [
   { name="David Mertz, Ph.D.", email="mertz@gnosis.cx" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries",
     "Programming Language :: Python :: 3",

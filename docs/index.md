@@ -23,7 +23,7 @@ functionality, and the collection of names and implementations in a namespace
 can all be imported by importing the one namespace object.
 
 A default dispatcher named `Dispatcher` can be imported directly, but normally
-a factory function will generate new ones.  In the [Usage example](EXAMPLE.md),
+a factory function will generate new ones.  In the [Usage example](USAGE.md),
 a namespace called `nums` is created (e.g. for numeric functions with multiple
 implementations), but a real problem might create others called `events` or
 `datasets` or `customers`.
