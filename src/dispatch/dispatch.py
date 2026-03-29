@@ -106,6 +106,28 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
 # =============================================================================
 # Define at least one "MRO" resolver.
 # =============================================================================
+# Prior to PEP 484 and numerous compound types (Union[] specifically), it
+# was possible to rank matches. That is no longer coherent.  For example:
+#
+#   >>> class SpecialInt(int):
+#   ...     pass
+#   ...
+#   >>> n = SpecialInt(13)
+#   >>> type(n).mro()
+#   [<class '__main__.SpecialInt'>, <class 'int'>, <class 'object'>]
+#
+# In some sense, `n` is "most like" a SpecialInt, a bit less like an int,
+# and just nominally like an object.  In this simple case, we can rank or
+# weight such distances in evaluating several candidate implementations.
+#
+#   >>> def add(a: int, b: int | float | complex):
+#   ...     return a + b
+#   ...
+#   >>> add(SpecialInt(13), SpecialInt(12))
+#   25
+#
+# We can sensibly measure the "fit" of the match of the first argument, but
+# we cannot do so for the second argument.  It's simply a match or non-match.
 def weighted_resolver(
     implementations: list[FunctionInfo],
     *args,
@@ -135,8 +157,10 @@ def weighted_resolver(
        - If both predicates are satisfied, the first implementation is chosen.
        - If only one predicate is satisfied, that implementation is chosen.
        - If one predicate is absent, the more specific implementation is chosen.
-       - If a predicate is satisfied, we add +3 for positional arguments or +31 for keyword arguments.
+       - If a predicate is satisfied, we add +3 for positional arguments or +31 
+         for keyword arguments.
     """
+    _, _ = args, kws  # Just feeding the linter
 
     def best_implementation(*args, **kws):
         best_score = 0
