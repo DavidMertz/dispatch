@@ -31,7 +31,7 @@ def function_info(
 
 def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
     """
-    Extract args, types, and predicates
+    Extract args, types, and predicates from function annotations.
 
     The complication is that each annotation can have any of several formats:
 
@@ -46,6 +46,7 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
     """
     annotations = {}
     _locals = {}
+    
     # In "normal operation" a Dispatcher will bind `extra_types` to each
     # function (often simply as an empty list). In unit tests or special
     # uses, this might be called with an unadorned function.
@@ -66,32 +67,38 @@ def annotation_info(fn: Callable) -> dict[str, AnnotationInfo]:
             # No type annotation or predicate
             annotations[arg] = AnnotationInfo(Any, "True")  # No type annotation
             continue
-        elif len(parts := fn.__annotations__[arg].split("&", maxsplit=1)) == 2:
-            # Both type and predicate (maybe)
-            type_, predicate = parts
+            
+        annotation_str = fn.__annotations__[arg]
+        
+        # Handle the case where there's both type and predicate (separated by &)
+        if "&" in annotation_str:
+            parts = annotation_str.split("&", maxsplit=1)
+            type_part, predicate = parts[0].strip(), parts[1].strip()
+            
             try:
-                type_ = eval(type_, locals=_locals)  # type: ignore
+                type_ = eval(type_part, locals=_locals)  # type: ignore
                 if isinstance(type_, (type, UnionType)):
-                    annotations[arg] = AnnotationInfo(type_, predicate.strip())
-            except (TypeError, NameError, Exception) as _err:
-                # This could be a compound predicate containing an ampersand
-                all_parts = fn.__annotations__[arg].strip()
-                annotations[arg] = AnnotationInfo(Any, all_parts)
+                    annotations[arg] = AnnotationInfo(type_, predicate)
+                else:
+                    # This is an edge case where the first part isn't a valid type
+                    annotations[arg] = AnnotationInfo(Any, annotation_str.strip())
+            except Exception:
+                # If we can't evaluate the type part, treat entire annotation as predicate
+                annotations[arg] = AnnotationInfo(Any, annotation_str.strip())
         else:
+            # No predicate - just a type annotation
             try:
-                # Is first thing a type annotation?
-                # We will usually raise an exception if not a valid type
-                type_ = eval(parts[0], locals=_locals)  # type: ignore
+                # Try to evaluate as a type
+                type_ = eval(annotation_str, locals=_locals)  # type: ignore
                 if isinstance(type_, (type, UnionType)):
                     annotations[arg] = AnnotationInfo(type_, "True")  # No predicate
                 else:
                     # This is the odd case of non-contextual predicate (e.g. 2+2==5)
                     boolean_result = str(type_)
                     annotations[arg] = AnnotationInfo(Any, boolean_result)
-            except (TypeError, NameError, Exception) as _err:
+            except Exception:
                 # Not a type annotation, so it's a predicate (store as a string)
-                predicate = parts[0].strip()
-                annotations[arg] = AnnotationInfo(Any, predicate)
+                annotations[arg] = AnnotationInfo(Any, annotation_str.strip())
 
     return annotations
 
@@ -110,43 +117,25 @@ def weighted_resolver(
     If any type or predicate is directly violated, exclude that implementation.
     If no matching implementation is found, raise an exception.
 
-    Prior to PEP 484 and numerous compound types (Union[] specifically), it
-    was possible to rank matches. That is no longer coherent.  For example:
+    The scoring mechanism works as follows:
+    
+    1. For each argument, calculate a score based on:
+       - Type compatibility (higher scores for better matches)
+       - Predicate satisfaction (higher scores for satisfied predicates)
+    
+    2. For type compatibility:
+       - If a type is incompatible with an argument, we subtract -sys.maxsize.
+       - If a type is compatible with typing.Any, we add +5 to the score.
+       - If a type is compatible with a UnionType, we add +10 to the score.
+       - If a type is compatible with a simple type, we add +20 to the score.
+       - If a type is compatible with a simple type, but farther removed in its
+         MRO, subtract -1 for each step in the MRO.
 
-      >>> class SpecialInt(int):
-      ...     pass
-      ...
-      >>> n = SpecialInt(13)
-      >>> type(n).mro()
-      [<class '__main__.SpecialInt'>, <class 'int'>, <class 'object'>]
-
-    In some sense, `n` is "most like" a SpecialInt, a bit less like an int,
-    and just nominally like an object.  In this simple case, we can rank or
-    weight such distances in evaluating several candidate implementations.
-
-      >>> def add(a: int, b: int | float | complex):
-      ...     return a + b
-      ...
-      >>> add(SpecialInt(13), SpecialInt(12))
-      25
-
-    We can sensibly measure the "fit" of the match of the first argument, but
-    we cannot do so for the second argument.  It's simply a match or non-match.
-    We weight types by the following rules:
-
-      * If a type is incompatible with an argument, we subtract -sys.maxsize.
-      * If a type is compatible with typing.Any, we add +5 to the score.
-      * If a type is compatible with a UnionType, we add +10 to the score.
-      * If a type is compatible with a simple type, we add +20 to the score.
-      * If a type is compatible with a simple type, but farther removed in its
-        MRO, subtract -1 for each step in the MRO.
-
-    If two signatures match on types (or are equally weighted, in any case),
-    then the predicates are weighted as follows:
-
-      * If both predicates are satisfied, the first implementation is chosen.
-      * If only one predicate is satisfied, that implementation is chosen.
-      * If one predicate is absent, the more specific implementation is chosen.
+    3. For predicates:
+       - If both predicates are satisfied, the first implementation is chosen.
+       - If only one predicate is satisfied, that implementation is chosen.
+       - If one predicate is absent, the more specific implementation is chosen.
+       - If a predicate is satisfied, we add +3 for positional arguments or +31 for keyword arguments.
     """
 
     def best_implementation(*args, **kws):
@@ -178,42 +167,12 @@ def weighted_resolver(
                 score -= maxsize
                 continue
 
-            # First add weights based on positional arguments
+            # Process positional arguments
             for arg, info in zip(
                 args,
                 imp.annotation_info.items(),
             ):
-                varname, (type_, predicate) = info
-                _locals[varname] = arg
-
-                # Based on type information
-                if type_ == Any:
-                    score += 5  # compatible with typing.Any
-                elif not isinstance(arg, type_):
-                    score -= maxsize  # incompatible type
-                elif isinstance(type_, UnionType):
-                    score += 10  # compatible with UnionType
-                else:
-                    score += 20  # compatible with a simple type
-                    # Subtract distance in MRO
-                    offset = type(arg).__mro__.index(type_)
-                    mro_bonus = 10 - offset
-                    score += mro_bonus
-
-                # Based on predicates (the `True` predicate doesn't exclude
-                # the implementation, but neither does it improve its score)
-                if predicate == "True":
-                    pass
-                try:
-                    result = eval(predicate, locals=_locals)  # type: ignore
-                except Exception:
-                    # If a predicate cannot be evaluated, stipulate False.
-                    # E.g. Complex arg with predicate of inequality with an int
-                    result = False  # Assume predicate is False
-                if not result:
-                    score -= maxsize  # incompatible predicate
-                elif predicate != "True":
-                    score += 3  # non-trivial predicate satisfied
+                score += _calculate_score_for_arg(arg, info, _locals, is_positional=True)
 
             # Add weights based on keywords (similar to positional args)
             for varname, arg in kws.items():
@@ -222,29 +181,7 @@ def weighted_resolver(
                     score -= maxsize
                     continue
 
-                _locals[varname] = arg
-                type_, predicate = info
-
-                if type_ == Any:
-                    score += 5  # compatible with typing.Any
-                elif not isinstance(arg, type_):
-                    score -= maxsize  # incompatible type
-                elif isinstance(type_, UnionType):
-                    score += 10  # compatible with UnionType
-                else:
-                    score += 20  # compatible with basic type
-                    # Subtract distance in MRO
-                    offset = type(arg).__mro__.index(type_)
-                    mro_bonus = 10 - offset
-                    score += mro_bonus
-
-                # Based on predicates (the `True` predicate doesn't exclude
-                # the implementation, but neither does it improve its score)
-                result = eval(predicate, locals=_locals)  # type: ignore
-                if not result:
-                    score -= maxsize  # incompatible predicate
-                elif predicate != "True":
-                    score += 31  # non-trivial predicate satisfied
+                score += _calculate_score_for_arg(arg, (varname, info), _locals, is_positional=False)
 
             if score > best_score:
                 best_score = score
@@ -254,6 +191,45 @@ def weighted_resolver(
             raise ValueError(f"No matching implementation for {args=}, {kws=}")
 
         return implementation.fn if dry_run else implementation.fn(*args, **kws)
+
+    def _calculate_score_for_arg(arg, info, _locals, is_positional=True):
+        """Helper function to calculate score for a single argument."""
+        varname, (type_, predicate) = info
+        _locals[varname] = arg
+
+        # Based on type information
+        score = 0
+        if type_ == Any:
+            score += 5  # compatible with typing.Any
+        elif not isinstance(arg, type_):
+            return -maxsize  # incompatible type
+        elif isinstance(type_, UnionType):
+            score += 10  # compatible with UnionType
+        else:
+            score += 20  # compatible with a simple type
+            # Subtract distance in MRO
+            offset = type(arg).__mro__.index(type_)
+            mro_bonus = 10 - offset
+            score += mro_bonus
+
+        # Based on predicates (the `True` predicate doesn't exclude
+        # the implementation, but neither does it improve its score)
+        if predicate == "True":
+            return score
+            
+        try:
+            result = eval(predicate, locals=_locals)  # type: ignore
+        except Exception:
+            # If a predicate cannot be evaluated, stipulate False.
+            # E.g. Complex arg with predicate of inequality with an int
+            result = False  # Assume predicate is False
+        if not result:
+            return -maxsize  # incompatible predicate
+        elif predicate != "True":
+            # Different weights for positional vs keyword arguments
+            score += 3 if is_positional else 31  # non-trivial predicate satisfied
+
+        return score
 
     # Return the closure returning the best implementation
     return best_implementation
@@ -319,14 +295,17 @@ def get_dispatcher(
             new.extra_types = set(extra_types)  # type: ignore
 
             if fn is not None:
+                # Decorator usage - bind a function directly
                 name = fn.__name__
                 fn.extra_types = set(extra_types)  # type: ignore
                 implementation = function_info(fn, annotation_info(fn))
                 new.__class__.funcs[name].append(implementation)
             elif name:
+                # Binding to a function name that will be bound later
                 new.__class__.to_bind = name
                 new.__class__.using = using
             elif using:
+                # Using extra types but no function or name specified
                 new.__class__.to_bind = None
                 new.__class__.using = using
             else:
@@ -344,10 +323,11 @@ def get_dispatcher(
             return str(self.__class__)
 
         def __call__(self, fn):
+            # This is called when the dispatcher is used as a decorator
             name = self.__class__.to_bind or fn.__name__
             fn.extra_types = self.__class__.extra_types
-            # Perhaps inject additional names needed for this implementation
-            # but not available in the dispatcher as a whole.
+            
+            # Inject additional names needed for this implementation
             for extra in self.__class__.using:
                 if hasattr(extra, "__name__"):
                     fn.extra_types.add(extra)
